@@ -1,0 +1,17 @@
+# OS
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Env
+.env
+.env.*
+
+# Node (falls spaeter Build-Tools genutzt werden)
+node_modules/

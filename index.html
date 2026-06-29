@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>MDR Tools</title>
+
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-row">
+      <div>
+        <h1>Morning Dust Ranch Tools</h1>
+        <h4>WinterFox Werkzeugsammlung</h4>
+      </div>
+    </div>
+  </div>
+
+  <button class="menu-btn" onclick="toggleMenu()">☰ Menü</button>
+</header>
+
+<!-- SIDE MENU -->
+<nav id="menu" class="menu">
+  <button onclick="zeigeTool('start'); toggleMenu()">Start</button>
+  <button onclick="zeigeTool('pferde'); toggleMenu()">Import</button>
+  <button onclick="zeigeTool('datenbank'); toggleMenu()">Datenbank</button>
+  <button onclick="zeigeTool('zucht'); toggleMenu()">Zucht</button>
+  <button onclick="zeigeTool('turnier'); toggleMenu()">Turnier</button>
+  <button onclick="zeigeTool('exterieur'); toggleMenu()">Exterieur</button>
+  <button onclick="zeigeTool('farben'); toggleMenu()">Farben</button>
+</nav>
+
+<!-- BACKDROP -->
+<div id="menu-backdrop" onclick="toggleMenu()"></div>
+
+<main>
+
+<!-- START -->
+<section id="start" class="tool aktiv">
+  <div class="start-shell">
+    <div class="start-hero card">
+      <div class="start-badge">Dashboard</div>
+      <h2>Willkommen</h2>
+      <p>
+        Importiere Pferde, überprüfe Zuchtkombinationen und analysiere Turnierpotenziale in einem einzigen Schritt.
+      </p>
+      <p style="margin-top: 8px;"><b>Hinweis:</b> Exterieur-Auswertung funktioniert über Genaufschlüsselung und alternativ über "Exterieur nach Text".</p>
+
+      <div class="start-actions">
+        <button class="btn" onclick="zeigeTool('pferde')">Pferde registrieren</button>
+        <button class="btn start-secondary" onclick="zeigeTool('datenbank')">Datenbank öffnen</button>
+      </div>
+    </div>
+
+    <div class="start-grid">
+      <div class="card start-card">
+        <h3>🏆 Turnierprofil</h3>
+        <p>Disziplinen, LK und Punktwerte auf einen Blick in der Pferde-Detailansicht.</p>
+      </div>
+
+      <div class="card start-card">
+        <h3>🧬 Zuchtplanung</h3>
+        <p>Vergleiche Vererbungsoptionen mit Stute und Hengst direkt im Simulator.</p>
+      </div>
+
+      <div class="card start-card">
+        <h3>📋 Einfacher Ablauf</h3>
+        <p>1. Importieren, 2. Datenbank prüfen, 3. Zucht oder Turnierentscheidung treffen.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- IMPORT -->
+<section id="pferde" class="tool">
+  <div class="hero">
+    <h2>🐎 Pferde Import</h2>
+    <p>Copy & Paste MDR Block einfügen.</p>
+  </div>
+
+  <div class="container">
+    <div class="card form-card">
+      <textarea id="pferd_raw" placeholder="MDR Pferdeblock hier einfügen..."></textarea>
+
+      <div class="action-row">
+        <button class="btn" onclick="parsePferd()">🔍 Einlesen</button>
+        <button class="btn start-secondary" onclick="resetImportInput()">↺ Reset</button>
+      </div>
+
+      <div id="import_status"></div>
+    </div>
+  </div>
+</section>
+
+<!-- DATENBANK -->
+<section id="datenbank" class="tool">
+  <div class="hero">
+    
+    <h2>Datenbank</h2>
+    <p>Stuten & Hengste anklicken für Detailansicht (Zucht & Turnier)</p>
+  </div>
+
+  <div id="db_sortbar" class="database-tools" style="margin-bottom:15px;">
+  
+    <label><b>Sortieren nach:</b></label>
+    
+    <select id="dbSort" onchange="renderDatabase()">
+      <option value="name">Name</option>
+      <option value="geschlecht">Geschlecht</option>
+      <option value="besitzer">Besitzer</option>
+      <option value="gp">GP</option>
+      <option value="interieur">Interieur </option>
+      <option value="exterieur">Exterieur </option>
+    </select>
+
+  </div>
+
+
+  <div id="db_liste" class="container"></div>
+</section>
+
+<!-- ZUCHT -->
+<section id="zucht" class="tool">
+  <div class="hero">
+    <h2>🧬 Zucht Simulator</h2>
+    <p>Exterieur-Vererbung anhand der HH/Hh/hh Gene simulieren. Hier könnt ihr mehr Details zu den möglichen Genkombinationen im besten und schlechtesten Fall sehen.</p>
+  </div>
+
+  <div class="container">
+
+    <div class="card">
+      <h3>Gespeicherte Eltern auswählen </h3>
+
+      <label for="mareSelect">Stute</label>
+      <select id="mareSelect">
+        <option value="">Keine Stute vorhanden</option>
+      </select>
+
+      <br><br>
+
+      <label for="stallionSelect">Hengst</label>
+      <select id="stallionSelect">
+        <option value="">Kein Hengst vorhanden</option>
+      </select>
+
+      <hr style="margin: 16px 0; border: none; border-top: 1px solid rgba(31,58,46,0.15);">
+
+      <h3>Oder Daten direkt einfügen (ohne Speichern)</h3>
+
+      <div class="raw-label-row">
+        <label for="mare_raw">Stute - Rohdaten</label>
+        <button class="btn btn-reset-inline" onclick="resetBreedingRaw('mare')">↺</button>
+      </div>
+      <textarea id="mare_raw" class="raw-mini" placeholder="Exterieur- oder kompletter MDR-Block der Stute..."></textarea>
+
+      <br><br>
+
+      <div class="raw-label-row">
+        <label for="stallion_raw">Hengst - Rohdaten</label>
+        <button class="btn btn-reset-inline" onclick="resetBreedingRaw('stallion')">↺</button>
+      </div>
+      <textarea id="stallion_raw" class="raw-mini" placeholder="Exterieur- oder kompletter MDR-Block des Hengsts..."></textarea>
+
+      <br><br>
+
+      <button class="btn" onclick="simulateBreeding()">
+        Zucht simulieren
+      </button>
+    </div>
+
+    <div id="breeding_result" class="breeding-panel">
+      <p>Simulation starten, um Ergebnis zu sehen.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- TURNIER -->
+<section id="turnier" class="tool">
+  <div class="hero">
+    <h2>🏆 Turnier</h2>
+    <p>Turnierwerte analysieren - auch ohne Speichern. Pferdedaten wie beim Import einfach per Copy & Paste der MDR-Seite einfügen und direkt die Turnier-Tabellen ansehen</p>
+  </div>
+
+  <div class="container">
+    <div class="card form-card">
+      <h3>Turnierblock testen (ohne Speichern)</h3>
+      <textarea id="turnier_raw" placeholder="MDR-Block oder relevanter Leistungs-/Interieur-Abschnitt..."></textarea>
+      <div class="action-row">
+        <button class="btn" onclick="analyzeTournamentInput()"> Analysieren</button>
+        <button class="btn start-secondary" onclick="resetTournamentInput()">↺ Reset</button>
+      </div>
+    </div>
+
+    <div id="turnier_result" class="breeding-panel">
+      <p>Noch keine Analyse gestartet.</p>
+    </div>
+  </div>
+</section>
+
+<!-- EXTERIEUR -->
+<section id="exterieur" class="tool">
+  <div class="hero">
+    <h2>🧬 Exterieur Detail-Analyse</h2>
+    <p>Detaillierter als die Hengst-Übersicht im Zucht-Tab: direkte Bewertung pro Körperteil.</p>
+  </div>
+
+  <div class="container">
+    <div class="card form-card">
+      <h3>Exterieur-Block testen (ohne Speichern)</h3>
+      <p style="margin-bottom: 10px;">Du kannst Exterieur-Daten wie beim Import direkt hier reinkopieren.</p>
+      <textarea id="exterieur_raw" placeholder="Exterieur
+Kopf HH Hh hh HH | hh hh Hh HH
+... "></textarea>
+      <div class="action-row">
+        <button class="btn" onclick="analyzeExteriorInput()">Analysieren</button>
+        <button class="btn start-secondary" onclick="resetExteriorInput()">↺ Reset</button>
+      </div>
+      <div id="exterieur_result" class="breeding-panel" style="margin-top: 14px; display: none;"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FARBEN -->
+<section id="farben" class="tool">
+  <div class="hero">
+    <h2>🎨 Farben</h2>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <p>Genetik-Farbsystem (noch leer).</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-credits">
+  <p>MDR Tools von @WinterFox · Zucht, Turnier und Analyse · 06/2026</p>
+</footer>
+
+<script src="script.js"></script>
+
+</body>
+</html>
