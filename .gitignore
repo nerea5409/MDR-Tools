@@ -15,3 +15,6 @@ Thumbs.db
 
 # Node (falls spaeter Build-Tools genutzt werden)
 node_modules/
+
+# Cloudflare Wrangler
+.wrangler/
