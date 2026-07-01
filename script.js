@@ -2,7 +2,80 @@
    🗂️ DATENBANK
 ========================= */
 
-let pferde = JSON.parse(localStorage.getItem("pferde")) || [];
+const HORSE_STORE_KEY = "pferde";
+const HORSE_API_PATH = "/api/pferde";
+
+let pferde = [];
+
+function readLocalPferde() {
+    try {
+        const raw = localStorage.getItem(HORSE_STORE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function writeLocalPferde(data) {
+    try {
+        localStorage.setItem(HORSE_STORE_KEY, JSON.stringify(data));
+    } catch {
+        // Local storage is only a fallback when the remote store is unavailable.
+    }
+}
+
+async function fetchRemotePferde() {
+    const response = await fetch(HORSE_API_PATH, {
+        headers: {
+            Accept: "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`Horse store GET failed with ${response.status}`);
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+}
+
+async function persistPferdeToRemote() {
+    const response = await fetch(HORSE_API_PATH, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json"
+        },
+        body: JSON.stringify(pferde)
+    });
+
+    if (!response.ok) {
+        throw new Error(`Horse store PUT failed with ${response.status}`);
+    }
+}
+
+async function loadPferde() {
+    const localPferde = readLocalPferde();
+
+    try {
+        const remotePferde = await fetchRemotePferde();
+
+        if (remotePferde.length === 0 && localPferde.length > 0) {
+            pferde = localPferde;
+            await persistPferdeToRemote();
+            writeLocalPferde(pferde);
+            return;
+        }
+
+        pferde = remotePferde;
+        writeLocalPferde(pferde);
+        return;
+    } catch {
+        pferde = localPferde;
+        writeLocalPferde(pferde);
+    }
+}
 
 
 /* =========================
@@ -56,7 +129,7 @@ window.addEventListener("resize", syncMenuLayerOffsets);
    💾 SAVE SYSTEM
 ========================= */
 
-function savePferd(pferd) {
+async function savePferd(pferd) {
 
     const index = pferde.findIndex(p => p.name === pferd.name);
 
@@ -66,7 +139,13 @@ function savePferd(pferd) {
         pferde.push(pferd);
     }
 
-    localStorage.setItem("pferde", JSON.stringify(pferde));
+    writeLocalPferde(pferde);
+
+    try {
+        await persistPferdeToRemote();
+    } catch {
+        // Keep the local copy so the app still works offline or during deployment setup.
+    }
 }
 
 
@@ -74,7 +153,7 @@ function savePferd(pferd) {
    🐎 IMPORT
 ========================= */
 
-function parsePferd() {
+async function parsePferd() {
 
     const raw = document.getElementById("pferd_raw").value;
 
@@ -94,7 +173,7 @@ function parsePferd() {
         return;
     }
 
-    savePferd(pferd);
+    await savePferd(pferd);
     renderDatabase();
 
     document.getElementById("import_status").innerHTML = `
@@ -1011,10 +1090,17 @@ function getTournamentSkillValue(skillData) {
    🗑️ DELETE
 ========================= */
 
-function deletePferd(i) {
+async function deletePferd(i) {
     if (!confirm("Pferd löschen?")) return;
     pferde.splice(i,1);
-    localStorage.setItem("pferde", JSON.stringify(pferde));
+    writeLocalPferde(pferde);
+
+    try {
+        await persistPferdeToRemote();
+    } catch {
+        // Keep local data in sync even if the remote store is temporarily unavailable.
+    }
+
     renderDatabase();
 }
 
@@ -1732,6 +1818,7 @@ function getCategoryBestLK(horse, disciplines) {
    INIT
 ========================= */
 
-window.onload = () => {
+window.addEventListener("DOMContentLoaded", async () => {
+    await loadPferde();
     renderDatabase();
-};
+});
