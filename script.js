@@ -294,6 +294,20 @@ function findGeschlecht(text) {
     return match ? match[0] : "Unbekannt";
 }
 
+function normalizeOwner(value) {
+    const owner = (value || "").trim();
+    return owner || "Unbekannt";
+}
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 
 /* =========================
    ⭐ GP
@@ -1117,7 +1131,29 @@ function renderDatabase() {
     const db = document.getElementById("db_liste");
     db.innerHTML = "";
 
-    let sorted = [...pferde];
+    const ownerFilter = document.getElementById("dbFilterBesitzer");
+    if (ownerFilter) {
+        const currentOwner = ownerFilter.value || "__all__";
+        const owners = [...new Set(pferde.map((horse) => normalizeOwner(horse.besitzer)))]
+            .sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
+
+        ownerFilter.innerHTML = `
+            <option value="__all__">Alle Besitzer</option>
+            ${owners.map((owner) => `<option value="${escapeHtml(owner)}">${escapeHtml(owner)}</option>`).join("")}
+        `;
+
+        const hasCurrent = owners.includes(currentOwner);
+        ownerFilter.value = hasCurrent ? currentOwner : "__all__";
+    }
+
+    const filterGeschlecht = document.getElementById("dbFilterGeschlecht")?.value || "__all__";
+    const filterBesitzer = ownerFilter?.value || "__all__";
+
+    let sorted = pferde.filter((horse) => {
+        const genderPass = filterGeschlecht === "__all__" || (horse.geschlecht || "Unbekannt") === filterGeschlecht;
+        const ownerPass = filterBesitzer === "__all__" || normalizeOwner(horse.besitzer) === filterBesitzer;
+        return genderPass && ownerPass;
+    });
 
     const mode = document.getElementById("dbSort")?.value || "name";
 
@@ -1166,17 +1202,17 @@ function renderDatabase() {
             <div class="horse-main">
 
                 <div class="horse-title">
-                    <b>${p.name}</b>
+                    <b>${escapeHtml(p.name)}</b>
                 </div>
 
                 <div class="horse-line">
-                    GP ${p.gp} · Int Ø ${intAvg} · Ext Ø ${extAvg}
+                    ${(p.geschlecht || "Unbekannt")} · GP ${p.gp} · Int Ø ${intAvg} · Ext Ø ${extAvg}
                 </div>
 
             </div>
 
             <div class="horse-owner">
-                ${p.besitzer || "Unbekannt"}
+                ${escapeHtml(normalizeOwner(p.besitzer))}
             </div>
 
             <button class="delete-btn">
@@ -1202,6 +1238,18 @@ function renderDatabase() {
     });
 }
 
+function resetDatabaseFilters() {
+    const genderFilter = document.getElementById("dbFilterGeschlecht");
+    const ownerFilter = document.getElementById("dbFilterBesitzer");
+    const sort = document.getElementById("dbSort");
+
+    if (genderFilter) genderFilter.value = "__all__";
+    if (ownerFilter) ownerFilter.value = "__all__";
+    if (sort) sort.value = "name";
+
+    renderDatabase();
+}
+
 
 function showHorseDetail(horse) {
 
@@ -1218,7 +1266,35 @@ function showHorseDetail(horse) {
     }
 }
 
-function showStallionView(horse) {
+function hasCompleteExteriorGenesForPair(mare, stallion) {
+    const mareKeys = Object.keys(mare?.exterieur || {});
+    if (!mareKeys.length) return false;
+
+    for (const key of mareKeys) {
+        const genes = stallion?.exterieur?.[key]?.genes;
+        if (!Array.isArray(genes) || genes.length < 8) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function showStallionDetailFromMare(mareIndex, stallionIndex) {
+    const mare = pferde[mareIndex];
+    const stallion = pferde[stallionIndex];
+    if (!mare || !stallion) {
+        renderDatabase();
+        return;
+    }
+
+    showStallionView(stallion, {
+        backAction: `showMareCombinationsByRefresh(${mareIndex})`,
+        backLabel: "Zurück zur Hengstkombi"
+    });
+}
+
+function showStallionView(horse, options = {}) {
 
     document.getElementById("db_sortbar").style.display = "none";
     document.querySelector("#datenbank .hero").style.display = "none";
@@ -1226,13 +1302,20 @@ function showStallionView(horse) {
     if (!horse) return;
 
     const container = document.getElementById("db_liste");
+    const backAction = options.backAction || "renderDatabase()";
+    const backLabel = options.backLabel || "Zurück";
+    const intAvg = calculateInteriorAverage(horse.interieur || {});
+    const extAvg = calculateExteriorAverage(horse.exterieur || {});
 
     const header = `
         <div class="detail-header">
 
-            <button class="btn back-btn" onclick="renderDatabase()">Zurück</button>
+            <button class="btn back-btn" onclick="${backAction}">${backLabel}</button>
 
-            <h2>${horse.name}</h2>
+            <div class="detail-title-block">
+                <h2>${horse.name}</h2>
+                <p class="detail-meta">GP ${horse.gp || 0} · Int Ø ${intAvg} · Ext Ø ${extAvg}</p>
+            </div>
 
             <div class="view-switch">
                 <button class="active">Turnier</button>
@@ -1257,12 +1340,29 @@ function showMareCombinations(mare) {
 
     let stallions = pferde.filter(p => p.geschlecht === "Hengst");
 
-    const mode = document.getElementById("sortMode")?.value || "bestCase";
+    const stallionSearchRaw = (document.getElementById("stallionSearch")?.value || "").trim().toLowerCase();
+
+    stallions = stallions.filter((horse) => {
+        const genesPass = hasCompleteExteriorGenesForPair(mare, horse);
+        const searchPass = !stallionSearchRaw || (horse.name || "").toLowerCase().includes(stallionSearchRaw);
+        return genesPass && searchPass;
+    });
+
+    const mode = document.getElementById("sortMode")?.value || "best";
+
+    const rangeCache = new Map();
+    const getRange = (stallion) => {
+        const key = stallion.name;
+        if (!rangeCache.has(key)) {
+            rangeCache.set(key, calculateExteriorRange(mare, stallion));
+        }
+        return rangeCache.get(key);
+    };
 
     stallions.sort((a, b) => {
 
-        const aRange = calculateExteriorRange(mare, a);
-        const bRange = calculateExteriorRange(mare, b);
+        const aRange = getRange(a);
+        const bRange = getRange(b);
 
         if (mode === "gp") {
             return b.gp - a.gp;
@@ -1282,6 +1382,27 @@ function showMareCombinations(mare) {
 
     });
 
+    const stallionRows = stallions.map((stallion, index) => {
+        const range = getRange(stallion);
+        const spread = (Number(range.worst) - Number(range.best)).toFixed(2);
+        const owner = normalizeOwner(stallion.besitzer);
+
+        return `
+            <tr>
+                <td>${index + 1}</td>
+                <td><b>${escapeHtml(stallion.name)}</b></td>
+                <td>${escapeHtml(owner)}</td>
+                <td>${stallion.gp}</td>
+                <td><span class="score-chip score-chip-good">${range.best}</span></td>
+                <td><span class="score-chip score-chip-warn">${range.worst}</span></td>
+                <td>${spread}</td>
+                <td>
+                    <button class="btn btn-mini" onclick="showStallionDetailFromMare(${pferde.indexOf(mare)}, ${pferde.indexOf(stallion)})">Details</button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
     let html = `
         <div class="detail-header">
 
@@ -1298,8 +1419,9 @@ function showMareCombinations(mare) {
 
         <div id="view-zucht">
 
-            <label>Sortierung:</label>
-            <select id="sortMode" onchange="showMareCombinationsByRefresh(${pferde.indexOf(mare)})">
+            <div class="compare-toolbar">
+                <label class="compare-sort-label" for="sortMode">Sortierung</label>
+                <select class="compare-sort-select" id="sortMode" onchange="showMareCombinationsByRefresh(${pferde.indexOf(mare)})">
 
                 <option value="name" ${mode === "name" ? "selected" : ""}>
                     Name
@@ -1319,25 +1441,41 @@ function showMareCombinations(mare) {
 
             </select>
 
+                <span class="compare-toolbar-spacer" aria-hidden="true"></span>
+
+                <input
+                    id="stallionSearch"
+                    class="stallion-search-input"
+                    type="text"
+                    placeholder="Hengst suchen..."
+                    value="${escapeHtml(stallionSearchRaw)}"
+                    onkeydown="handleStallionSearchEnter(event, ${pferde.indexOf(mare)})"
+                >
+                <button class="btn btn-mini" onclick="runStallionSearch(${pferde.indexOf(mare)})">Suchen</button>
+            </div>
+
             <p><b>Hengst-Kombinationen</b></p>
 
-            <div class="cards-container">
-    `;
+            <p class="compare-summary">${stallions.length} Treffer · nur Hengste mit ausgeschlüsseltem Exterieur</p>
 
-    
-    stallions.forEach(stallion => {
-
-        const range = calculateExteriorRange(mare, stallion);
-
-        html += `
-            <div class="card">
-                <h3>${stallion.name}</h3>
-                <p>GP ${stallion.gp} · Best ${range.best} · Worst ${range.worst}</p>
-            </div>
-        `;
-    });
-
-    html += `
+            <div class="compare-table-wrap">
+                <table class="compare-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Besitzer</th>
+                            <th>GP</th>
+                            <th>Best</th>
+                            <th>Worst</th>
+                            <th>Spanne</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${stallionRows || `<tr><td colspan="8" class="compare-empty">Keine Hengste für diese Filter gefunden.</td></tr>`}
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -1354,6 +1492,16 @@ function showMareCombinationsByRefresh(mareIndex) {
     if (mare) {
         showMareCombinations(mare);
     }
+}
+
+function runStallionSearch(mareIndex) {
+    showMareCombinationsByRefresh(mareIndex);
+}
+
+function handleStallionSearchEnter(event, mareIndex) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    runStallionSearch(mareIndex);
 }
 
 

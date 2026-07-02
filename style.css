@@ -474,6 +474,10 @@ header::after {
   margin: 0;
 }
 
+.detail-title-block {
+  text-align: center;
+}
+
 .back-btn {
   justify-self: start;
 }
@@ -581,25 +585,39 @@ select:focus {
 .database-tools {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 10px;
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 
   margin: 0 36px 12px;
-  padding: 10px 14px;
+  padding: 8px 52px 8px 12px;
 
-  width: fit-content;
+  width: calc(100% - 72px);
 
-  background: rgba(211, 176, 123, 0.22);
+  background: rgba(211, 176, 123, 0.14);
   border: 1px solid rgba(31, 58, 46, 0.1);
   border-radius: 10px;
 }
 
 .database-tools label {
-  font-size: 12.5px;
-  opacity: 0.85;
+  font-size: 12px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.db-inline-label {
+  margin-left: 4px;
+}
+
+.db-inline-label:first-child {
+  margin-left: 0;
 }
 
 .database-tools select {
-  width: 220px;
+  width: 165px;
   padding: 6px 10px;
 
   border-radius: 6px;
@@ -613,6 +631,30 @@ select:focus {
   color: var(--text);
 
   cursor: pointer;
+}
+
+.database-actions {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  z-index: 1;
+}
+
+.btn.btn-db-reset {
+  margin-top: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 17px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #sortMode {
@@ -663,6 +705,8 @@ select:focus {
 }
 
 .horse-title {
+  display: inline-flex;
+  align-items: center;
   font-weight: bold;
 }
 
@@ -773,6 +817,138 @@ select:focus {
   border-color: var(--primary);
 }
 
+.compare-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  margin-bottom: 10px;
+}
+
+.compare-toolbar input,
+.compare-toolbar select {
+  max-width: 260px;
+}
+
+.compare-sort-label {
+  font-size: 12.5px;
+  color: #516056;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.compare-sort-select {
+  width: 165px;
+  min-width: 165px;
+}
+
+.compare-toolbar-spacer {
+  flex: 0 0 12px;
+  width: 12px;
+}
+
+.stallion-search-input {
+  min-width: 260px;
+  width: 100%;
+  max-width: 380px;
+  height: 36px;
+  padding: 7px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(31, 58, 46, 0.2);
+  background: #fffdf9;
+  color: var(--text);
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  transition: 0.2s ease;
+}
+
+.stallion-search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(31,58,46,0.12);
+}
+
+.detail-meta {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: #4d5a52;
+}
+
+.compare-summary {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  color: #4e5e53;
+}
+
+.compare-table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(31, 58, 46, 0.14);
+  border-radius: 10px;
+  background: #fffdf9;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 10px 9px;
+  border-bottom: 1px solid rgba(31, 58, 46, 0.1);
+  text-align: left;
+  font-size: 13.5px;
+  vertical-align: middle;
+}
+
+.compare-table th {
+  position: sticky;
+  top: 0;
+  background: #f6efe3;
+  color: #294438;
+  z-index: 1;
+}
+
+.compare-table tbody tr:hover {
+  background: #faf3e7;
+}
+
+.compare-empty {
+  text-align: center;
+  color: #657367;
+}
+
+.score-chip {
+  display: inline-block;
+  min-width: 44px;
+  text-align: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 58, 46, 0.2);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.score-chip-good {
+  background: rgba(76, 175, 80, 0.16);
+  color: #2d6e31;
+}
+
+.score-chip-warn {
+  background: rgba(255, 152, 0, 0.17);
+  color: #84510d;
+}
+
+.btn.btn-mini {
+  margin-top: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
 /* =========================
    RESPONSIVE
 ========================= */
@@ -811,6 +987,44 @@ select:focus {
   .container {
     padding: 22px 10px;
     gap: 16px;
+  }
+
+  .database-tools {
+    margin: 0 10px 12px;
+    width: calc(100% - 20px);
+    padding: 8px 50px 8px 10px;
+    gap: 12px;
+    flex-wrap: nowrap;
+  }
+
+  .database-tools select {
+    width: 160px;
+    max-width: 160px;
+  }
+
+  .database-actions {
+    right: 8px;
+  }
+
+  .compare-toolbar input,
+  .compare-toolbar select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .stallion-search-input {
+    min-width: 220px;
+    width: 220px;
+  }
+
+  .compare-sort-select {
+    width: 150px;
+    min-width: 150px;
+  }
+
+  .compare-toolbar-spacer {
+    flex-basis: 6px;
+    width: 6px;
   }
 
   .card {

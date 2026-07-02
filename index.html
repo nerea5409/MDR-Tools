@@ -107,9 +107,7 @@
   </div>
 
   <div id="db_sortbar" class="database-tools" style="margin-bottom:15px;">
-  
-    <label><b>Sortieren nach:</b></label>
-    
+    <label class="db-inline-label" for="dbSort"><b>Sortieren</b></label>
     <select id="dbSort" onchange="renderDatabase()">
       <option value="name">Name</option>
       <option value="geschlecht">Geschlecht</option>
@@ -118,6 +116,24 @@
       <option value="interieur">Interieur </option>
       <option value="exterieur">Exterieur </option>
     </select>
+
+    <label class="db-inline-label" for="dbFilterGeschlecht"><b>Geschlecht</b></label>
+    <select id="dbFilterGeschlecht" onchange="renderDatabase()">
+      <option value="__all__">Alle</option>
+      <option value="Stute">Stute</option>
+      <option value="Hengst">Hengst</option>
+      <option value="Wallach">Wallach</option>
+      <option value="Unbekannt">Unbekannt</option>
+    </select>
+
+    <label class="db-inline-label" for="dbFilterBesitzer"><b>Besitzer</b></label>
+    <select id="dbFilterBesitzer" onchange="renderDatabase()">
+      <option value="__all__">Alle Besitzer</option>
+    </select>
+
+    <div class="database-actions">
+      <button class="btn btn-db-reset" onclick="resetDatabaseFilters()" title="Filter zurücksetzen" aria-label="Filter zurücksetzen">↺</button>
+    </div>
 
   </div>
 
