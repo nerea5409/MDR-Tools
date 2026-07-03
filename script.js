@@ -401,43 +401,43 @@ function calculateInteriorAverage(obj) {
 
 function parseExterior(text) {
 
-    const lines = text.split("\n");
-
-    let capture = false;
-    let result = {};
-
-    for (let line of lines) {
-
-        line = line.trim();
-
-        if (line.startsWith("Exterieur")) {
-            capture = true;
-            continue;
-        }
-
-        if (capture && line.includes("Interieur")) break;
-        if (!capture) continue;
-
-        if (!line.includes("|")) continue;
-
-        const [left, right] = line.split("|");
-
-        const key = left.trim().split(/\s+/)[0];
-
-        const leftGenes = left.trim().split(/\s+/).slice(1);
-        const rightGenes = right.trim().split(/\s+/);
-
-        result[key] = {
-            score: evaluateExteriorFixed(leftGenes, rightGenes),
-            genes: [...leftGenes, ...rightGenes]
-        };
-    }
-
-    if (Object.keys(result).length > 0) {
-        return result;
+    const geneResult = extractExteriorGenesAnyBlock(text);
+    if (Object.keys(geneResult).length > 0) {
+        return geneResult;
     }
 
     return parseExteriorFromText(text);
+}
+
+function extractExteriorGenesAnyBlock(text) {
+    const lines = text.split("\n");
+    const result = {};
+
+    for (let rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line || !line.includes("|")) continue;
+
+        const [leftRaw, rightRaw] = line.split("|");
+        if (!leftRaw || !rightRaw) continue;
+
+        const leftParts = leftRaw.trim().split(/\s+/);
+        const rightParts = rightRaw.trim().split(/\s+/);
+        if (leftParts.length < 2 || rightParts.length < 1) continue;
+
+        const key = leftParts[0];
+        const leftGenes = leftParts.slice(1, 5);
+        const rightGenes = rightParts.slice(0, 4);
+        const genes = [...leftGenes, ...rightGenes];
+
+        if (!key || genes.length < 8) continue;
+
+        result[key] = {
+            score: evaluateExteriorFixed(leftGenes, rightGenes),
+            genes: genes.slice(0, 8)
+        };
+    }
+
+    return result;
 }
 
 const EXTERIOR_TEXT_TRAITS = [
@@ -475,6 +475,8 @@ function mapExteriorTextScore(label) {
     const n = normalizeExteriorText(label);
     if (!n) return null;
 
+    if (/nicht\s+getestet|ungetestet|nicht\s+bewertet|k\s*a/.test(n)) return 0;
+
     const hasVielZu = /\bviel\s+zu\b/.test(n);
     const hasZu = /\bzu\b/.test(n);
 
@@ -495,19 +497,39 @@ function mapExteriorTextScore(label) {
 
 function extractExteriorTextSection(text) {
     const lines = text.split("\n");
-    const startIndex = lines.findIndex((line) => /exterieur\s*nach\s*text/i.test(line));
+    let startIndex = lines.findIndex((line) => /exterieur\s*nach\s*text/i.test(line));
+
+    // Some imports contain multiple exterieur headings; prefer the lower block.
+    if (startIndex === -1) {
+        const plainIndexes = lines
+            .map((line, index) => (/^\s*exterieur\b/i.test(line) ? index : -1))
+            .filter(index => index !== -1);
+
+        if (plainIndexes.length) {
+            startIndex = plainIndexes[plainIndexes.length - 1];
+        }
+    }
 
     if (startIndex === -1) {
         return text;
     }
 
     const collected = [];
+
+    const inlineStart = (lines[startIndex] || "")
+        .replace(/^\s*exterieur(?:\s*nach\s*text)?\s*/i, "")
+        .trim();
+
+    if (inlineStart) {
+        collected.push(inlineStart);
+    }
+
     for (let i = startIndex + 1; i < lines.length; i++) {
         const line = lines[i];
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        if (/^(interieur|farben|leistungen|leistung|turnier|genetik)\b/i.test(trimmed)) {
+        if (/^(interieur|farben|leistungen|leistung|turnier|genetik|zuchtwert|abstammung|charakter)\b/i.test(trimmed)) {
             break;
         }
 
@@ -517,12 +539,44 @@ function extractExteriorTextSection(text) {
     return collected.join("\n");
 }
 
-function parseExteriorFromText(text) {
-    const section = extractExteriorTextSection(text);
-    const lines = section.split("\n").map((line) => line.trim()).filter(Boolean);
-    const result = {};
+function resolveExteriorTraitKey(label) {
+    const normalized = normalizeExteriorText(label);
+    if (!normalized) return null;
 
     for (const trait of EXTERIOR_TEXT_TRAITS) {
+        if (trait.aliases.some(alias => normalized === alias)) {
+            return trait.key;
+        }
+    }
+
+    return null;
+}
+
+function parseExteriorFromText(text) {
+    const section = extractExteriorTextSection(text);
+    const result = {};
+
+    // Handles compact imports like: Exterieur **Kopf**Nicht getestet**Gebiss**Nicht getestet
+    const inlineSection = section.replace(/\r/g, " ").replace(/\n+/g, " ");
+    const compactMatches = Array.from(inlineSection.matchAll(/\*\*([^*]+)\*\*\s*([^*\n]+)/g));
+
+    for (const match of compactMatches) {
+        const traitKey = resolveExteriorTraitKey(match[1] || "");
+        if (!traitKey || result[traitKey]) continue;
+
+        const label = (match[2] || "").trim();
+        const score = mapExteriorTextScore(label);
+
+        if (score !== null) {
+            result[traitKey] = { score, label };
+        }
+    }
+
+    const lines = section.split("\n").map((line) => line.trim()).filter(Boolean);
+
+    for (const trait of EXTERIOR_TEXT_TRAITS) {
+        if (result[trait.key]) continue;
+
         for (const line of lines) {
             const normalizedLine = normalizeExteriorText(line);
             const alias = trait.aliases.find((a) => normalizedLine.startsWith(`${a} `) || normalizedLine === a);
@@ -1568,13 +1622,13 @@ const DISCIPLINES = {
     "Geländefahren": ["Geländefahren", "Galopp", "Tempo", "Wendigkeit", "Gelassenheit", "Kondition", "Kraft", "Sozialverhalten", "Nervenstärke", "Furchtlosigkeit"],
     "Holzrücken": ["Holzrücken", "Schritt", "Kraft", "Gelassenheit", "Kondition", "Wendigkeit", "Ausdruck", "Nervenstärke", "Furchtlosigkeit", "Gutmütigkeit"],
     
-    // Klassische Reiterei
+    // Barock
     "Klassische Dressur": ["Klassische Dressur", "Schritt", "Trab", "Galopp", "Kraft", "Präzision", "Ausdruck", "Gelehrigkeit", "Aufmerksamkeit", "Intelligenz"],
     "Spanische Gänge": ["Spanische Gänge", "Schritt", "Trab", "Wendigkeit", "Präzision", "Ausdruck", "Gelassenheit", "Gutmütigkeit", "Aufmerksamkeit", "Intelligenz"],
     "Schulsprünge": ["Schulsprünge", "Kraft", "Präzision", "Ausdruck", "Gelassenheit", "Kondition", "Wendigkeit", "Temperament", "Leistungsbereitschaft", "Nervenstärke"],
     "Hohe Schule": ["Hohe Schule", "Schritt", "Trab", "Galopp", "Kraft", "Präzision", "Ausdruck", "Gelehrigkeit", "Leistungsbereitschaft", "Intelligenz"],
     
-    // Gang-Spezialrassen
+    // Mehrgang
     "Tölt-Prüfung": ["Tölt-Prüfung", "Tölt", "Kraft", "Präzision", "Ausdruck", "Kondition", "Gelassenheit", "Gutmütigkeit", "Sozialverhalten", "Aufmerksamkeit"],
     "Passrennen": ["Passrennen", "Pass", "Beschleunigung", "Kondition", "Tempo", "Kraft", "Gelassenheit", "Sozialverhalten", "Siegeswille", "Temperament"],
     "Foxtrott Pleasure": ["Foxtrott Pleasure", "Foxtrott", "Gelassenheit", "Ausdruck", "Präzision", "Kondition", "Wendigkeit", "Gutmütigkeit", "Sozialverhalten", "Gelehrigkeit"],
@@ -1588,7 +1642,7 @@ const INTERIOR_REQUIREMENTS = {
     "Cross Country": ["Nervenstärke", "Aufmerksamkeit", "Leistungsbereitschaft"],
     "Distanz": ["Temperament", "Gutmütigkeit", "Nervenstärke"],
     
-    "Flachrennen": ["Gelassenheit", "Siegeswille", "Temperament"],
+    "Flachrennen": ["Leistungsbereitschaft", "Siegeswille", "Temperament"],
     "Hindernisrennen": ["Nervenstärke", "Siegeswille", "Aufmerksamkeit"],
     "Seejagdrennen": ["Nervenstärke", "Siegeswille", "Furchtlosigkeit"],
     "Trabrennen": ["Leistungsbereitschaft", "Temperament", "Siegeswille"],
@@ -1625,8 +1679,8 @@ const TOURNAMENT_CATEGORIES = {
     "Englisch": ["Dressur", "Springen", "Cross Country", "Distanz"],
     "Fahren": ["Dressurfahren", "Hindernisfahren", "Geländefahren", "Holzrücken"],
     "Rennen": ["Flachrennen", "Hindernisrennen", "Seejagdrennen", "Trabrennen"],
-    "Klassische Reiterei": ["Klassische Dressur", "Spanische Gänge", "Schulsprünge", "Hohe Schule"],
-    "Gang-Spezialrassen": ["Tölt-Prüfung", "Passrennen", "Foxtrott Pleasure", "Racking"]
+    "Barock": ["Klassische Dressur", "Spanische Gänge", "Schulsprünge", "Hohe Schule"],
+    "Mehrgang": ["Tölt-Prüfung", "Passrennen", "Foxtrott Pleasure", "Racking"]
 };
 
 const CATEGORY_THEME = {
@@ -1635,8 +1689,8 @@ const CATEGORY_THEME = {
     "Englisch": { accent: "#315f8f", soft: "#e8f0f9", strong: "#1f4268" },
     "Fahren": { accent: "#3b7f73", soft: "#e6f4f1", strong: "#25584f" },
     "Rennen": { accent: "#9b2f5f", soft: "#f9e6ef", strong: "#6a1f41" },
-    "Klassische Reiterei": { accent: "#6b4f9e", soft: "#efe9fb", strong: "#463170" },
-    "Gang-Spezialrassen": { accent: "#8c6a2c", soft: "#f8f1e3", strong: "#5f481d" }
+    "Barock": { accent: "#6b4f9e", soft: "#efe9fb", strong: "#463170" },
+    "Mehrgang": { accent: "#8c6a2c", soft: "#f8f1e3", strong: "#5f481d" }
 };
 
 /**
