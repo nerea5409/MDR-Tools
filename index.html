@@ -44,36 +44,38 @@
 <!-- START -->
 <section id="start" class="tool aktiv">
   <div class="start-shell">
-    <div class="start-hero card">
-      <div class="start-badge">Dashboard</div>
-      <h2>Willkommen</h2>
-      <p>
-        Importiere Pferde, überprüfe Zuchtkombinationen und analysiere Turnierpotenziale in einem einzigen Schritt.
-      </p>
-      <p style="margin-top: 8px;"><b>Hinweis:</b> Exterieur-Auswertung funktioniert über Genaufschlüsselung und alternativ über "Exterieur nach Text".</p>
+    <div class="start-top card">
+      <div class="start-kicker start-kicker-corner">MDR Dashboard</div>
+      <div class="start-intro">
+        <h2>Willkommen!</h2>
+        <p>
+          Importiere Pferde, vergleiche Exterieur und Farben in der Zuchthengste und nutze Turnierwerte direkt in der Detailansicht. In einem Klick direkt von Rohdaten zu allen wichtigen Informationen.
+        </p>
 
-      <div class="start-actions">
-        <button class="btn" onclick="zeigeTool('pferde')">Pferde registrieren</button>
-        <button class="btn start-secondary" onclick="zeigeTool('datenbank')">Datenbank öffnen</button>
+        <div class="start-actions">
+          <button class="btn" onclick="zeigeTool('pferde')">Import starten</button>
+          <button class="btn start-secondary" onclick="zeigeTool('datenbank')">Datenbank öffnen</button>
+        </div>
       </div>
     </div>
 
-    <div class="start-grid">
-      <div class="card start-card">
-        <h3>🏆 Turnierprofil</h3>
-        <p>Disziplinen, LK und Punktwerte auf einen Blick in der Pferde-Detailansicht.</p>
+    <div class="start-stats">
+      <div class="card start-stat-card">
+        <h3>Import</h3>
+        <p>MDR-Blöcke einlesen und Daten strukturiert übernehmen.</p>
       </div>
 
-      <div class="card start-card">
-        <h3>🧬 Zuchtplanung</h3>
-        <p>Vergleiche Vererbungsoptionen mit Stute und Hengst direkt im Simulator.</p>
+      <div class="card start-stat-card">
+        <h3>Exterieur</h3>
+        <p>Best/Worst-Fall pro Paarung und Detailvergleich je Körperteil.</p>
       </div>
 
-      <div class="card start-card">
-        <h3>📋 Einfacher Ablauf</h3>
-        <p>1. Importieren, 2. Datenbank prüfen, 3. Zucht oder Turnierentscheidung treffen.</p>
+      <div class="card start-stat-card">
+        <h3>Farben</h3>
+        <p>Alle Farb-Möglichkeiten mit Gen-Verteilungen im Überblick.</p>
       </div>
     </div>
+
   </div>
 </section>
 
@@ -151,39 +153,41 @@
   <div class="container">
 
     <div class="card">
-      <h3>Gespeicherte Eltern auswählen </h3>
+      <div class="parent-input-shell">
+        <div class="parent-switch-row">
+          <h3>Eltern auswählen</h3>
+          <div class="parent-mode-switch" role="tablist" aria-label="Eingabemodus Zucht">
+            <button id="breedingModeDirectBtn" type="button" class="parent-mode-btn active" onclick="toggleParentInputMode('breeding','direct')">Direkt</button>
+            <button id="breedingModeSavedBtn" type="button" class="parent-mode-btn" onclick="toggleParentInputMode('breeding','saved')">Gespeichert</button>
+          </div>
+        </div>
 
-      <label for="mareSelect">Stute</label>
-      <select id="mareSelect">
-        <option value="">Keine Stute vorhanden</option>
-      </select>
+        <div id="breedingSavedPanel" class="parent-mode-panel" style="display:none;">
+          <label for="mareSelect">Stute</label>
+          <select id="mareSelect">
+            <option value="">Keine Stute vorhanden</option>
+          </select>
 
-      <br><br>
+          <label for="stallionSelect" style="margin-top:10px;">Hengst</label>
+          <select id="stallionSelect">
+            <option value="">Kein Hengst vorhanden</option>
+          </select>
+        </div>
 
-      <label for="stallionSelect">Hengst</label>
-      <select id="stallionSelect">
-        <option value="">Kein Hengst vorhanden</option>
-      </select>
+        <div id="breedingDirectPanel" class="parent-mode-panel">
+          <div class="raw-label-row">
+            <label for="mare_raw">Stute - Rohdaten</label>
+            <button class="btn btn-reset-inline" onclick="resetBreedingRaw('mare')">↺</button>
+          </div>
+          <textarea id="mare_raw" class="raw-mini" placeholder="Exterieur- oder kompletter MDR-Block der Stute..."></textarea>
 
-      <hr style="margin: 16px 0; border: none; border-top: 1px solid rgba(31,58,46,0.15);">
-
-      <h3>Oder Daten direkt einfügen (ohne Speichern)</h3>
-
-      <div class="raw-label-row">
-        <label for="mare_raw">Stute - Rohdaten</label>
-        <button class="btn btn-reset-inline" onclick="resetBreedingRaw('mare')">↺</button>
+          <div class="raw-label-row">
+            <label for="stallion_raw">Hengst - Rohdaten</label>
+            <button class="btn btn-reset-inline" onclick="resetBreedingRaw('stallion')">↺</button>
+          </div>
+          <textarea id="stallion_raw" class="raw-mini" placeholder="Exterieur- oder kompletter MDR-Block des Hengsts..."></textarea>
+        </div>
       </div>
-      <textarea id="mare_raw" class="raw-mini" placeholder="Exterieur- oder kompletter MDR-Block der Stute..."></textarea>
-
-      <br><br>
-
-      <div class="raw-label-row">
-        <label for="stallion_raw">Hengst - Rohdaten</label>
-        <button class="btn btn-reset-inline" onclick="resetBreedingRaw('stallion')">↺</button>
-      </div>
-      <textarea id="stallion_raw" class="raw-mini" placeholder="Exterieur- oder kompletter MDR-Block des Hengsts..."></textarea>
-
-      <br><br>
 
       <button class="btn" onclick="simulateBreeding()">
         Zucht simulieren
@@ -247,11 +251,54 @@ Kopf HH Hh hh HH | hh hh Hh HH
 <section id="farben" class="tool">
   <div class="hero">
     <h2>🎨 Farben</h2>
+    <p>Farbvererbung prüfen: funktioniert auch mit Teil-Genen (z. B. nur Agouti).</p>
   </div>
 
   <div class="container">
-    <div class="card">
-      <p>Genetik-Farbsystem (noch leer).</p>
+    <div class="card form-card">
+      <div class="parent-input-shell">
+        <div class="parent-switch-row">
+          <h3>Eltern auswählen</h3>
+          <div class="parent-mode-switch" role="tablist" aria-label="Eingabemodus Farben">
+            <button id="colorModeDirectBtn" type="button" class="parent-mode-btn active" onclick="toggleParentInputMode('color','direct')">Direkt</button>
+            <button id="colorModeSavedBtn" type="button" class="parent-mode-btn" onclick="toggleParentInputMode('color','saved')">Gespeichert</button>
+          </div>
+        </div>
+
+        <div id="colorSavedPanel" class="parent-mode-panel" style="display:none;">
+          <label for="colorMareSelect">Stute</label>
+          <select id="colorMareSelect">
+            <option value="">Keine Stute vorhanden</option>
+          </select>
+
+          <label for="colorStallionSelect" style="margin-top:10px;">Hengst</label>
+          <select id="colorStallionSelect">
+            <option value="">Kein Hengst vorhanden</option>
+          </select>
+        </div>
+
+        <div id="colorDirectPanel" class="parent-mode-panel">
+          <div class="raw-label-row">
+            <label for="color_mare_raw">Stute - Rohdaten</label>
+            <button class="btn btn-reset-inline" onclick="resetColorRaw('mare')">↺</button>
+          </div>
+          <textarea id="color_mare_raw" class="raw-mini" placeholder="MDR-Block, Farben-Abschnitt oder Genzeile der Stute..."></textarea>
+
+          <div class="raw-label-row">
+            <label for="color_stallion_raw">Hengst - Rohdaten</label>
+            <button class="btn btn-reset-inline" onclick="resetColorRaw('stallion')">↺</button>
+          </div>
+          <textarea id="color_stallion_raw" class="raw-mini" placeholder="MDR-Block, Farben-Abschnitt oder Genzeile des Hengsts..."></textarea>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button id="colorAnalyzeBtn" type="button" class="btn" onclick="analyzeColorInput()">Farben berechnen</button>
+      </div>
+    </div>
+
+    <div id="color_result" class="breeding-panel">
+      <p>Noch keine Farbanalyse gestartet.</p>
     </div>
   </div>
 </section>

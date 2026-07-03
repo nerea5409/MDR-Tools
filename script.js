@@ -86,8 +86,13 @@ function zeigeTool(name) {
     document.querySelectorAll(".tool").forEach(t => t.classList.remove("aktiv"));
     document.getElementById(name).classList.add("aktiv");
 
-    if (name === "zucht") {
+    if (name === "zucht" || name === "farben") {
         populateBreedingDropdowns();
+    }
+
+    if (name === "zucht") {
+        const legacyLiveBox = document.getElementById("breeding_inbreeding_status");
+        if (legacyLiveBox) legacyLiveBox.remove();
     }
 }
 
@@ -162,6 +167,7 @@ async function parsePferd() {
         geschlecht: findGeschlecht(raw),
         gp: findGP(raw),
         besitzer: findBesitzer(raw),
+        abstammung: extractPedigree(raw),
         farbe: extractAlleles(raw),
         interieur: extractInterior(raw),
         exterieur: parseExterior(raw),
@@ -246,6 +252,7 @@ function analyzeTournamentInput() {
 function buildHorseFromRaw(rawText, roleLabel) {
     const name = findName(rawText) || `Eingabe ${roleLabel}`;
     const exterieur = parseExteriorLoose(rawText);
+    const abstammung = extractPedigree(rawText);
 
     if (!Object.keys(exterieur).length) {
         return null;
@@ -254,8 +261,103 @@ function buildHorseFromRaw(rawText, roleLabel) {
     return {
         name,
         geschlecht: roleLabel,
+        abstammung,
         exterieur
     };
+}
+
+function buildHorseForInbreedingFromRaw(rawText, roleLabel) {
+    const name = findName(rawText) || `Eingabe ${roleLabel}`;
+    const abstammung = extractPedigree(rawText);
+
+    if (!name) {
+        return null;
+    }
+
+    return {
+        name,
+        geschlecht: roleLabel,
+        abstammung
+    };
+}
+
+function ensureBreedingInbreedingStatusElement() {
+    let box = document.getElementById("breeding_inbreeding_status");
+    if (box) return box;
+
+    const zuchtCard = document.querySelector("#zucht .card");
+    if (!zuchtCard) return null;
+
+    box = document.createElement("div");
+    box.id = "breeding_inbreeding_status";
+    box.style.marginTop = "12px";
+    box.style.padding = "10px 12px";
+    box.style.borderRadius = "9px";
+    box.style.border = "1px solid rgba(31,58,46,0.16)";
+    box.style.background = "rgba(31,58,46,0.05)";
+    box.style.color = "#244234";
+    box.innerHTML = "<b>Inzucht-Check:</b> Bitte beide Eltern wählen oder Rohdaten einfügen.";
+
+    const simulateButton = zuchtCard.querySelector("button.btn[onclick=\"simulateBreeding()\"]");
+    if (simulateButton && simulateButton.parentNode) {
+        simulateButton.insertAdjacentElement("afterend", box);
+    } else {
+        zuchtCard.appendChild(box);
+    }
+
+    return box;
+}
+
+function updateBreedingInbreedingStatus() {
+    const box = ensureBreedingInbreedingStatusElement();
+    if (!box) return;
+
+    const mareRaw = document.getElementById("mare_raw")?.value?.trim() || "";
+    const stallionRaw = document.getElementById("stallion_raw")?.value?.trim() || "";
+    const mareFromDropdown = pferde[document.getElementById("mareSelect")?.value];
+    const stallionFromDropdown = pferde[document.getElementById("stallionSelect")?.value];
+
+    const mare = mareRaw ? buildHorseForInbreedingFromRaw(mareRaw, "Stute") : mareFromDropdown;
+    const stallion = stallionRaw ? buildHorseForInbreedingFromRaw(stallionRaw, "Hengst") : stallionFromDropdown;
+
+    if (!mare || !stallion) {
+        box.style.border = "1px solid rgba(31,58,46,0.16)";
+        box.style.background = "rgba(31,58,46,0.05)";
+        box.style.color = "#244234";
+        box.innerHTML = "<b>Inzucht-Check:</b> Bitte beide Eltern wählen oder Rohdaten einfügen.";
+        return;
+    }
+
+    const inbreeding = getInbreedingRisk(mare, stallion);
+
+    if (inbreeding.isRisk) {
+        box.style.border = "1px solid rgba(198, 40, 40, 0.45)";
+        box.style.background = "rgba(244, 67, 54, 0.16)";
+        box.style.color = "#7f1d1d";
+        box.innerHTML = `<b>Inzucht erkannt:</b> ${escapeHtml(inbreeding.reasons.join(" · "))}`;
+        return;
+    }
+
+    box.style.border = "1px solid rgba(56, 142, 60, 0.35)";
+    box.style.background = "rgba(76, 175, 80, 0.12)";
+    box.style.color = "#1b5e20";
+    box.innerHTML = "<b>Inzucht-Check:</b> Kein Hinweis für diese Paarung.";
+}
+
+function initBreedingInbreedingStatus() {
+    ensureBreedingInbreedingStatusElement();
+
+    const bind = (id, eventName = "change") => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.inbreedingBound === "1") return;
+        el.addEventListener(eventName, updateBreedingInbreedingStatus);
+        el.dataset.inbreedingBound = "1";
+    };
+
+    bind("mareSelect", "change");
+    bind("stallionSelect", "change");
+    bind("mare_raw", "input");
+    bind("stallion_raw", "input");
 }
 
 
@@ -283,6 +385,290 @@ function findBesitzer(text) {
     const match = text.match(/Besitzer:\s*(.+)/i);
 
     return match ? match[1].trim() : "Unbekannt";
+}
+
+function normalizeHorseName(value) {
+    return String(value || "")
+        .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’'`´]/g, "")
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/\([^\)]*\)/g, " ")
+    .replace(/\b[a-z]{1,4}\d{1,4}\b/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function findLineValueByLabels(text, labels) {
+    for (const label of labels) {
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const pattern = new RegExp(`${escaped}\\s*[:\-]\\s*([^\n\r]+)`, "i");
+        const match = pattern.exec(text);
+        if (!match) continue;
+
+        const value = (match[1] || "")
+            .replace(/\s{2,}.*/, "")
+            .replace(/\|.*/, "")
+            .trim();
+
+        if (value) {
+            return value;
+        }
+    }
+
+    return "";
+}
+
+function extractStammbaumSection(text) {
+    const lines = text.split("\n");
+    const startIndex = lines.findIndex((line) => /stammbaum/i.test(line));
+
+    if (startIndex === -1) {
+        return "";
+    }
+
+    const out = [];
+    for (let i = startIndex + 1; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (/^(?:-\s*)?\[?\**exterieur\b/i.test(trimmed) || /horse_conformation/i.test(trimmed)) {
+            break;
+        }
+
+        if (/^(?:-\s*)?\[?\**interieur\b/i.test(trimmed) || /horse_interiortest/i.test(trimmed)) {
+            break;
+        }
+
+        out.push(trimmed);
+    }
+
+    return out.join("\n");
+}
+
+function extractPedigreeHorseNamesFromLinks(section) {
+    const names = [];
+    const seen = new Set();
+    const regex = /\[([^\]]+)\]\((https?:\/\/[^\)]*site=pferd&id=\d+[^\)]*|[^\)]*site=pferd&id=\d+[^\)]*)\)/gi;
+
+    let match;
+    while ((match = regex.exec(section)) !== null) {
+        const rawName = (match[1] || "").replace(/\*+/g, "").trim();
+        if (!rawName) continue;
+
+        const key = normalizeHorseName(rawName);
+        if (!key || seen.has(key)) continue;
+
+        seen.add(key);
+        names.push(rawName);
+    }
+
+    return names;
+}
+
+function extractPedigreeHorseNamesFromPlainText(section) {
+    const lines = section.split("\n").map((line) => line.trim()).filter(Boolean);
+    const names = [];
+    const seen = new Set();
+
+    const pushName = (raw) => {
+        const value = String(raw || "")
+            .replace(/^stammbaum\s*/i, "")
+            .replace(/\s*potential\s*:\s*\d+.*$/i, "")
+            .trim();
+
+        if (!value) return;
+        if (/^(american\s+quarter\s+horse|potential\s*:|besitzhistorie|exterieur|interieur)$/i.test(value)) return;
+        if (value.length < 3 || value.length > 80) return;
+
+        const key = normalizeHorseName(value);
+        if (!key || seen.has(key)) return;
+
+        seen.add(key);
+        names.push(value);
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const next = lines[i + 1] || "";
+
+        if (/american\s+quarter\s+horse/i.test(next)) {
+            pushName(line);
+        }
+    }
+
+    // Fallback for compact copy/paste text where line breaks are partially lost.
+    const compactRegex = /([^\n\r]{3,80}?)\s*American Quarter Horse/gi;
+    let compactMatch;
+    while ((compactMatch = compactRegex.exec(section)) !== null) {
+        const raw = (compactMatch[1] || "").split(/\n|\r/).pop() || "";
+        pushName(raw);
+    }
+
+    return names;
+}
+
+function extractPedigree(text) {
+    const stammbaumSection = extractStammbaumSection(text);
+    const linkedNames = extractPedigreeHorseNamesFromLinks(stammbaumSection);
+    const plainNames = extractPedigreeHorseNamesFromPlainText(stammbaumSection);
+    const ownNameKey = normalizeHorseName(findName(text));
+
+    const allNames = [...linkedNames, ...plainNames];
+    const uniqueNames = [];
+    const uniqueKeys = new Set();
+
+    for (const rawName of allNames) {
+        const key = normalizeHorseName(rawName);
+        if (!key || key === ownNameKey || uniqueKeys.has(key)) continue;
+        uniqueKeys.add(key);
+        uniqueNames.push(rawName);
+    }
+
+    const vaterByLabel = findLineValueByLabels(text, ["Vater", "Sire"]);
+    const mutterByLabel = findLineValueByLabels(text, ["Mutter", "Dam"]);
+
+    const vater = vaterByLabel || uniqueNames[0] || "";
+    const mutter = mutterByLabel || uniqueNames[1] || "";
+
+    const ahnen = uniqueNames.slice();
+    if (vater && !ahnen.some((name) => normalizeHorseName(name) === normalizeHorseName(vater))) {
+        ahnen.unshift(vater);
+    }
+    if (mutter && !ahnen.some((name) => normalizeHorseName(name) === normalizeHorseName(mutter))) {
+        ahnen.splice(1, 0, mutter);
+    }
+
+    return {
+        vater,
+        mutter,
+        ahnen
+    };
+}
+
+function getPedigreeAncestorsWithinGenerations(horse, maxGenerations = 3) {
+    const names = Array.isArray(horse?.abstammung?.ahnen) ? horse.abstammung.ahnen : [];
+    const limitsByGeneration = [2, 6, 14]; // 1: parents, 2: +grandparents, 3: +great-grandparents
+    const limit = limitsByGeneration[Math.max(0, Math.min(maxGenerations, 3)) - 1] || 0;
+
+    const displayByKey = new Map();
+    const ancestorKeys = [];
+
+    for (const originalName of names.slice(0, limit)) {
+        const key = normalizeHorseName(originalName);
+        if (!key || key === "unbekannt") continue;
+        if (!displayByKey.has(key)) {
+            displayByKey.set(key, originalName);
+            ancestorKeys.push(key);
+        }
+    }
+
+    // Fallback for imports that only have labels without full ahnen list.
+    if (!ancestorKeys.length) {
+        for (const parentName of [horse?.abstammung?.vater, horse?.abstammung?.mutter]) {
+            const key = normalizeHorseName(parentName);
+            if (!key || key === "unbekannt" || displayByKey.has(key)) continue;
+            displayByKey.set(key, parentName);
+            ancestorKeys.push(key);
+        }
+    }
+
+    return {
+        ancestorSet: new Set(ancestorKeys),
+        ancestorList: ancestorKeys,
+        displayByKey
+    };
+}
+
+function hasAncestorNameMatch(ancestorList, horseName) {
+    const target = normalizeHorseName(horseName);
+    if (!target) return false;
+
+    for (const ancestor of ancestorList || []) {
+        if (!ancestor) continue;
+        if (ancestor === target) return true;
+
+        // Fallback for remaining display/name variants after normalization.
+        if ((ancestor.length >= 8 && ancestor.includes(target)) || (target.length >= 8 && target.includes(ancestor))) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function getInbreedingRisk(mare, stallion, horses = pferde) {
+    const mareName = normalizeHorseName(mare?.name);
+    const stallionName = normalizeHorseName(stallion?.name);
+
+    const empty = {
+        isRisk: false,
+        reasons: [],
+        sharedAncestors: []
+    };
+
+    if (!mareName || !stallionName) {
+        return empty;
+    }
+
+    const reasons = [];
+
+    if (mareName === stallionName) {
+        reasons.push("Gleiches Pferd");
+    }
+
+    const mareParents = [mare?.abstammung?.vater, mare?.abstammung?.mutter]
+        .map(normalizeHorseName)
+        .filter(Boolean);
+    const stallionParents = [stallion?.abstammung?.vater, stallion?.abstammung?.mutter]
+        .map(normalizeHorseName)
+        .filter(Boolean);
+
+    if (mareParents.includes(stallionName)) {
+        reasons.push("Hengst ist direkter Elternteil der Stute");
+    }
+
+    if (stallionParents.includes(mareName)) {
+        reasons.push("Stute ist direkter Elternteil des Hengstes");
+    }
+
+    // For foal inbreeding checks we only use:
+    // foal, parents, grandparents, great-grandparents.
+    // Therefore, per parent horse we only include 2 ancestor generations.
+    const MAX_GENERATIONS = 2;
+    const marePedigree = getPedigreeAncestorsWithinGenerations(mare, MAX_GENERATIONS);
+    const stallionPedigree = getPedigreeAncestorsWithinGenerations(stallion, MAX_GENERATIONS);
+    const mareAncestors = marePedigree.ancestorSet;
+    const stallionAncestors = stallionPedigree.ancestorSet;
+
+    const sharedAncestors = [...mareAncestors].filter((name) => stallionAncestors.has(name));
+
+    if (mareAncestors.has(stallionName) || hasAncestorNameMatch(marePedigree.ancestorList, stallion?.name)) {
+        reasons.push("Hengst steht im Stammbaum der Stute");
+    }
+
+    if (stallionAncestors.has(mareName) || hasAncestorNameMatch(stallionPedigree.ancestorList, mare?.name)) {
+        reasons.push("Stute steht im Stammbaum des Hengstes");
+    }
+
+    if (sharedAncestors.length) {
+        const prettyNames = sharedAncestors
+            .slice(0, 4)
+            .map((key) => marePedigree.displayByKey.get(key) || stallionPedigree.displayByKey.get(key) || key);
+        const suffix = sharedAncestors.length > 4 ? " ..." : "";
+        reasons.push(`Gemeinsame Vorfahren: ${prettyNames.join(", ")}${suffix}`);
+    }
+
+    const uniqueReasons = Array.from(new Set(reasons));
+
+    return {
+        isRisk: uniqueReasons.length > 0,
+        reasons: uniqueReasons,
+        sharedAncestors
+    };
 }
 
 /* =========================
@@ -763,11 +1149,15 @@ function populateBreedingDropdowns() {
 
     const mare = document.getElementById("mareSelect");
     const stallion = document.getElementById("stallionSelect");
+    const colorMare = document.getElementById("colorMareSelect");
+    const colorStallion = document.getElementById("colorStallionSelect");
 
     if (!mare || !stallion) return;
 
     mare.innerHTML = "";
     stallion.innerHTML = "";
+    if (colorMare) colorMare.innerHTML = "";
+    if (colorStallion) colorStallion.innerHTML = "";
 
     pferde.forEach((p, i) => {
 
@@ -775,9 +1165,16 @@ function populateBreedingDropdowns() {
         opt.value = i;
         opt.textContent = p.name;
 
-        if (p.geschlecht === "Stute") mare.appendChild(opt);
-        if (p.geschlecht === "Hengst") stallion.appendChild(opt.cloneNode(true));
+        if (p.geschlecht === "Stute") {
+            mare.appendChild(opt);
+            if (colorMare) colorMare.appendChild(opt.cloneNode(true));
+        }
+        if (p.geschlecht === "Hengst") {
+            stallion.appendChild(opt.cloneNode(true));
+            if (colorStallion) colorStallion.appendChild(opt.cloneNode(true));
+        }
     });
+
 }
 
 
@@ -980,6 +1377,19 @@ function simulateBreeding() {
         return;
     }
 
+    const inbreeding = getInbreedingRisk(mare, stallion);
+
+    if (inbreeding.isRisk) {
+        const reasonText = inbreeding.reasons.join(" · ");
+        document.getElementById("breeding_result").innerHTML = `
+            <h2>Exterieur Potenzial</h2>
+            <div style="margin: 10px 0 12px; padding: 10px 12px; border: 1px solid rgba(198, 40, 40, 0.35); border-radius: 9px; background: rgba(244, 67, 54, 0.08); color: #7f1d1d;">
+                <b>Verpaarung blockiert (Inzucht):</b> ${escapeHtml(reasonText)}
+            </div>
+        `;
+        return;
+    }
+
     const range = calculateExteriorRange(mare, stallion);
 
     const partBlocks = (range.parts || []).map(part => {
@@ -1034,6 +1444,868 @@ function extractAlleles(text) {
     }
 
     return out.join(" ");
+}
+
+function resetColorInput() {
+    const mareRaw = document.getElementById("color_mare_raw");
+    const stallionRaw = document.getElementById("color_stallion_raw");
+    const out = document.getElementById("color_result");
+
+    if (mareRaw) mareRaw.value = "";
+    if (stallionRaw) stallionRaw.value = "";
+    if (out) out.innerHTML = `<p>Noch keine Farbanalyse gestartet.</p>`;
+}
+
+function resetColorRaw(type) {
+    const fieldId = type === "stallion" ? "color_stallion_raw" : "color_mare_raw";
+    const field = document.getElementById(fieldId);
+    if (field) field.value = "";
+}
+
+function toggleParentInputMode(scope, mode) {
+    const isBreeding = scope === "breeding";
+    const savedPanel = document.getElementById(isBreeding ? "breedingSavedPanel" : "colorSavedPanel");
+    const directPanel = document.getElementById(isBreeding ? "breedingDirectPanel" : "colorDirectPanel");
+    const savedBtn = document.getElementById(isBreeding ? "breedingModeSavedBtn" : "colorModeSavedBtn");
+    const directBtn = document.getElementById(isBreeding ? "breedingModeDirectBtn" : "colorModeDirectBtn");
+
+    if (!savedPanel || !directPanel || !savedBtn || !directBtn) return;
+
+    const savedMode = mode !== "direct";
+
+    savedPanel.style.display = savedMode ? "block" : "none";
+    directPanel.style.display = savedMode ? "none" : "block";
+
+    savedBtn.classList.toggle("active", savedMode);
+    directBtn.classList.toggle("active", !savedMode);
+}
+
+function initColorTools() {
+    const analyzeBtn = document.getElementById("colorAnalyzeBtn");
+    const resetBtn = document.getElementById("colorResetBtn");
+
+    if (analyzeBtn && analyzeBtn.dataset.boundColor !== "1") {
+        analyzeBtn.addEventListener("click", analyzeColorInput);
+        analyzeBtn.dataset.boundColor = "1";
+    }
+
+    if (resetBtn && resetBtn.dataset.boundColor !== "1") {
+        resetBtn.addEventListener("click", resetColorInput);
+        resetBtn.dataset.boundColor = "1";
+    }
+}
+
+function normalizeColorToken(value) {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/[äÄ]/g, "ae")
+        .replace(/[öÖ]/g, "oe")
+        .replace(/[üÜ]/g, "ue")
+        .replace(/[ß]/g, "ss")
+        .replace(/[^a-z0-9+]/g, "")
+        .trim();
+}
+
+function canonicalizeAgouti(token) {
+    const t = normalizeColorToken(token);
+    if (!t) return null;
+    if (t === "ap" || t === "a+") return "Ap";
+    if (t === "a1" || t === "a") return "A1";
+    if (t === "at") return "At";
+    if (t === "a0" || t === "aa") return "a0";
+    return null;
+}
+
+function canonicalizeGeneToken(token, geneKey) {
+    const raw = String(token || "").trim();
+    if (!raw) return null;
+
+    if (geneKey === "agouti") return canonicalizeAgouti(raw);
+
+    if (geneKey === "extension") {
+        if (raw === "E") return "E";
+        if (raw === "e") return "e";
+        return null;
+    }
+
+    if (geneKey === "cream") {
+        if (raw === "Cr") return "Cr";
+        if (raw === "cr") return "cr";
+        return null;
+    }
+
+    if (geneKey === "dun") {
+        if (raw === "D") return "D";
+        if (raw === "d") return "d";
+        return null;
+    }
+
+    if (geneKey === "silver") {
+        if (raw === "Z") return "Z";
+        if (raw === "z") return "z";
+        return null;
+    }
+
+    if (geneKey === "grey") {
+        if (raw === "G") return "G";
+        if (raw === "g") return "g";
+        return null;
+    }
+
+    if (geneKey === "champagne") {
+        if (raw === "Ch") return "Ch";
+        if (raw === "ch") return "ch";
+        return null;
+    }
+
+    if (geneKey === "sooty") {
+        if (raw === "Sty") return "Sty";
+        if (raw === "sty") return "sty";
+        return null;
+    }
+
+    if (geneKey === "flaxen") {
+        if (raw === "F") return "F";
+        if (raw === "f") return "f";
+        return null;
+    }
+
+    if (geneKey === "pearl") {
+        if (raw === "Pl") return "Pl";
+        if (raw === "pl") return "pl";
+        return null;
+    }
+
+    if (geneKey === "pangare") {
+        if (raw === "Pa") return "Pa";
+        if (raw === "pa") return "pa";
+        return null;
+    }
+
+    if (geneKey === "overo") {
+        if (raw === "Ov") return "Ov";
+        if (raw === "ov") return "ov";
+        return null;
+    }
+
+    if (geneKey === "splashed") {
+        if (raw === "Spl") return "Spl";
+        if (raw === "spl") return "spl";
+        return null;
+    }
+
+    if (geneKey === "rabicano") {
+        if (raw === "Rb") return "Rb";
+        if (raw === "rb") return "rb";
+        return null;
+    }
+
+    if (geneKey === "leopard") {
+        if (raw === "Lp") return "Lp";
+        if (raw === "lp") return "lp";
+        return null;
+    }
+
+    if (geneKey === "patn1") {
+        if (raw === "PATN1") return "PATN1";
+        if (raw === "patn1") return "patn1";
+        return null;
+    }
+
+    if (geneKey === "tobiano") {
+        if (raw === "To") return "To";
+        if (raw === "to") return "to";
+        return null;
+    }
+
+    if (geneKey === "sabino") {
+        if (raw === "Sb") return "Sb";
+        if (raw === "sb") return "sb";
+        return null;
+    }
+
+    if (geneKey === "white") {
+        if (raw === "W") return "W";
+        if (raw === "w") return "w";
+        return null;
+    }
+
+    if (geneKey === "roan") {
+        if (raw === "Rn") return "Rn";
+        if (raw === "rn") return "rn";
+        return null;
+    }
+
+    return null;
+}
+
+function extractCompactGeneValues(text) {
+    const map = {};
+    const source = String(text || "");
+
+    // Format A: **Gene**Value
+    const markdownPattern = /\*\*([^*]+)\*\*\s*([^*\n\r]+)/g;
+    let match;
+    while ((match = markdownPattern.exec(source)) !== null) {
+        const key = normalizeColorToken(match[1]);
+        const value = (match[2] || "").trim();
+        if (!key || !value) continue;
+        map[key] = value;
+    }
+
+    // Format B: plain MDR section, often compacted like
+    // FarbenFellfarbe: WildbayExtensionEeAgoutia0ApDundd...
+    const labelDefs = [
+        { key: "fellfarbe", label: "Fellfarbe" },
+        { key: "extension", label: "Extension" },
+        { key: "agouti", label: "Agouti" },
+        { key: "dun", label: "Dun" },
+        { key: "cream", label: "Cream" },
+        { key: "champagne", label: "Champagne" },
+        { key: "grey", label: "Grey" },
+        { key: "kit", label: "KIT" },
+        { key: "silver", label: "Silver" },
+        { key: "pearl", label: "Pearl" },
+        { key: "pangare", label: "Pangare" },
+        { key: "rabicano", label: "Rabicano" },
+        { key: "roan", label: "Roan" },
+        { key: "tobiano", label: "Tobiano" },
+        { key: "sabino", label: "Sabino" },
+        { key: "white", label: "White" },
+        { key: "overo", label: "Overo" },
+        { key: "splashed", label: "Splashed" },
+        { key: "appaloosa", label: "Appaloosa" },
+        { key: "patn1", label: "PATN1" },
+        { key: "patn2", label: "PATN2" },
+        { key: "sooty", label: "Sooty" },
+        { key: "flaxen", label: "Flaxen" }
+    ];
+
+    const farbenStart = source.search(/farben/i);
+    const rawScope = farbenStart >= 0 ? source.slice(farbenStart) : source;
+
+    // Trim at common next sections to avoid huge irrelevant tails.
+    const stopAt = rawScope.search(/(exterieur|interieur|leistung|zucht|nachkommen|turniere)\b/i);
+    const scope = stopAt > 0 ? rawScope.slice(0, stopAt) : rawScope;
+
+    const labelAlternation = labelDefs.map((d) => d.label).join("|");
+    const plainPattern = new RegExp(`(${labelAlternation})\\s*:?\\s*([\\s\\S]*?)(?=(?:${labelAlternation})\\s*:?|$)`, "gi");
+
+    while ((match = plainPattern.exec(scope)) !== null) {
+        const labelRaw = (match[1] || "").trim();
+        const valueRaw = (match[2] || "").trim();
+        const key = normalizeColorToken(labelRaw);
+        if (!key || !valueRaw) continue;
+
+        // Limit noisy captures to first meaningful token sequence.
+        const cleaned = valueRaw
+            .replace(/\s{2,}.*/, "")
+            .replace(/^[^A-Za-z0-9]+/, "")
+            .trim();
+
+        if (cleaned) {
+            map[key] = cleaned;
+        }
+    }
+
+    return map;
+}
+
+function isGeneUntested(value) {
+    const n = normalizeColorToken(value);
+    return !n || n.includes("nichtgetestet") || n === "-";
+}
+
+function parseCompactPair(value, geneKey) {
+    if (!value || isGeneUntested(value)) return null;
+
+    const raw = String(value).trim();
+    const compact = raw.replace(/\s+/g, "");
+
+    let match = null;
+
+    if (geneKey === "extension") {
+        match = /^([Ee])\/?([Ee])$/.exec(compact);
+    }
+
+    if (geneKey === "dun") {
+        match = /^([Dd])\/?([Dd])$/.exec(compact);
+    }
+
+    if (geneKey === "silver") {
+        match = /^([Zz])\/?([Zz])$/.exec(compact);
+    }
+
+    if (geneKey === "grey") {
+        match = /^([Gg])\/?([Gg])$/.exec(compact);
+    }
+
+    if (geneKey === "flaxen") {
+        match = /^([Ff])\/?([Ff])$/.exec(compact);
+    }
+
+    if (geneKey === "cream") {
+        match = /^(Cr|cr)\/?(Cr|cr)$/.exec(compact);
+    }
+
+    if (geneKey === "champagne") {
+        match = /^(Ch|ch)\/?(Ch|ch)$/.exec(compact);
+    }
+
+    if (geneKey === "sooty") {
+        match = /^(Sty|sty)\/?(Sty|sty)$/.exec(compact);
+    }
+
+    if (geneKey === "agouti") {
+        match = /^(Ap|A1|At|a0)\/?(Ap|A1|At|a0)$/i.exec(compact);
+    }
+
+    if (geneKey === "pearl") {
+        match = /^(Pl|pl)\/?(Pl|pl)$/.exec(compact);
+    }
+
+    if (geneKey === "pangare") {
+        match = /^(Pa|pa)\/?(Pa|pa)$/.exec(compact);
+    }
+
+    if (geneKey === "overo") {
+        match = /^(Ov|ov)\/?(Ov|ov)$/.exec(compact);
+    }
+
+    if (geneKey === "splashed") {
+        match = /^(Spl|spl)\/?(Spl|spl)$/.exec(compact);
+    }
+
+    if (geneKey === "rabicano") {
+        match = /^(Rb|rb)\/?(Rb|rb)$/.exec(compact);
+    }
+
+    if (geneKey === "leopard") {
+        match = /^(Lp|lp)\/?(Lp|lp)$/.exec(compact);
+    }
+
+    if (geneKey === "patn1") {
+        match = /^(PATN1|patn1)\/?(PATN1|patn1)$/.exec(compact);
+    }
+
+    if (geneKey === "tobiano") {
+        match = /^(To|to)\/?(To|to)$/.exec(compact);
+    }
+
+    if (geneKey === "sabino") {
+        match = /^(Sb|sb)\/?(Sb|sb)$/.exec(compact);
+    }
+
+    if (geneKey === "white") {
+        match = /^(W|w)\/?(W|w)$/.exec(compact);
+    }
+
+    if (geneKey === "roan") {
+        match = /^(Rn|rn)\/?(Rn|rn)$/.exec(compact);
+    }
+
+    if (!match) return null;
+
+    const a = canonicalizeGeneToken(match[1], geneKey);
+    const b = canonicalizeGeneToken(match[2], geneKey);
+    if (!a || !b) return null;
+
+    return [a, b];
+}
+
+function parsePairForGene(text, geneKey) {
+    const raw = String(text || "");
+    const compact = raw.replace(/\s+/g, " ");
+    const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const compactGenes = extractCompactGeneValues(raw);
+
+    const defs = {
+        extension: ["extension", "ext", "e/e", "e ", " e"],
+        agouti: ["agouti", "a1", "ap", "at", "a0"],
+        cream: ["cream", "cr"],
+        dun: ["dun", "falbe", "dilution"],
+        silver: ["silver", "windfarben", "z"],
+        pearl: ["pearl", "pl"],
+        pangare: ["pangare", "pa"],
+        rabicano: ["rabicano", "rb"],
+        roan: ["roan", "rn"],
+        tobiano: ["tobiano", "to"],
+        sabino: ["sabino", "sb"],
+        white: ["white", "dominant white", "w"],
+        grey: ["grey", "gray", "schimmel", "g"],
+        champagne: ["champagne", "ch"],
+        sooty: ["sooty", "sty"],
+        flaxen: ["flaxen", "f/"],
+        overo: ["overo", "ov"],
+        splashed: ["splashed", "spl"],
+        leopard: ["appaloosa", "leopard", "lp"],
+        patn1: ["patn1"]
+    };
+
+    const compactKeysByGene = {
+        extension: ["extension"],
+        agouti: ["agouti"],
+        cream: ["cream"],
+        dun: ["dun"],
+        silver: ["silver"],
+        pearl: ["pearl"],
+        pangare: ["pangare"],
+        rabicano: ["rabicano"],
+        roan: ["roan"],
+        tobiano: ["tobiano"],
+        sabino: ["sabino"],
+        white: ["white"],
+        grey: ["grey", "gray"],
+        champagne: ["champagne"],
+        sooty: ["sooty"],
+        flaxen: ["flaxen"],
+        overo: ["overo"],
+        splashed: ["splashed"],
+        leopard: ["appaloosa", "leopard"],
+        patn1: ["patn1"]
+    };
+
+    // Priority path for imported MDR format: **Gene**Value.
+    const compactKeys = compactKeysByGene[geneKey] || [];
+    let compactValueFound = false;
+    for (const key of compactKeys) {
+        if (!(key in compactGenes)) continue;
+        compactValueFound = true;
+
+        const value = compactGenes[key];
+        if (isGeneUntested(value)) return null;
+
+        const parsed = parseCompactPair(value, geneKey);
+        return parsed || null;
+    }
+
+    // If gene key is present in compact data but unparseable, do not fall back to fuzzy regex.
+    if (compactValueFound) {
+        return null;
+    }
+
+    const candidates = defs[geneKey] || [];
+    const lineRegex = new RegExp(`(?:${candidates.map((v) => escapeRegex(v)).join("|")})[^\\n\\r:]*[:\\-]?\\s*([A-Za-z0-9+]+)\\s*[/|\\s]\\s*([A-Za-z0-9+]+)`, "i");
+    const lineMatch = lineRegex.exec(raw);
+    if (lineMatch) {
+        const a = canonicalizeGeneToken(lineMatch[1], geneKey);
+        const b = canonicalizeGeneToken(lineMatch[2], geneKey);
+        if (a && b) return [a, b];
+    }
+
+    if (geneKey === "agouti") {
+        const agPairRegex = /(Ap|A1|At|a0)\s*[/|\s]\s*(Ap|A1|At|a0)/i;
+        const m = agPairRegex.exec(compact);
+        if (m) {
+            const a = canonicalizeAgouti(m[1]);
+            const b = canonicalizeAgouti(m[2]);
+            if (a && b) return [a, b];
+        }
+    }
+
+    if (geneKey === "extension") {
+        const extPairRegex = /\b([Ee])\s*[/|\s]\s*([Ee])\b/;
+        const m = extPairRegex.exec(compact);
+        if (m) {
+            const a = canonicalizeGeneToken(m[1], geneKey);
+            const b = canonicalizeGeneToken(m[2], geneKey);
+            if (a && b) return [a, b];
+        }
+    }
+
+    return null;
+}
+
+function extractColorGenes(text) {
+    return {
+        extension: parsePairForGene(text, "extension"),
+        agouti: parsePairForGene(text, "agouti"),
+        cream: parsePairForGene(text, "cream"),
+        dun: parsePairForGene(text, "dun"),
+        silver: parsePairForGene(text, "silver"),
+        pearl: parsePairForGene(text, "pearl"),
+        pangare: parsePairForGene(text, "pangare"),
+        rabicano: parsePairForGene(text, "rabicano"),
+        roan: parsePairForGene(text, "roan"),
+        tobiano: parsePairForGene(text, "tobiano"),
+        sabino: parsePairForGene(text, "sabino"),
+        white: parsePairForGene(text, "white"),
+        overo: parsePairForGene(text, "overo"),
+        splashed: parsePairForGene(text, "splashed"),
+        leopard: parsePairForGene(text, "leopard"),
+        patn1: parsePairForGene(text, "patn1"),
+        grey: parsePairForGene(text, "grey"),
+        champagne: parsePairForGene(text, "champagne"),
+        sooty: parsePairForGene(text, "sooty"),
+        flaxen: parsePairForGene(text, "flaxen")
+    };
+}
+
+function genotypeDistribution(pairA, pairB) {
+    if (!pairA || !pairB) return null;
+    const out = new Map();
+
+    for (const a of pairA) {
+        for (const b of pairB) {
+            const key = [a, b].sort().join("/");
+            out.set(key, (out.get(key) || 0) + 1);
+        }
+    }
+
+    const result = [];
+    for (const [genotype, count] of out.entries()) {
+        result.push({ genotype, prob: count / 4 });
+    }
+    return result;
+}
+
+function genotypeHasAllele(genotype, allele) {
+    return String(genotype || "").split("/").includes(allele);
+}
+
+function genotypeAlleleCount(genotype, allele) {
+    return String(genotype || "").split("/").filter((a) => a === allele).length;
+}
+
+function resolveBaseFromState(state) {
+    const ext = state.extension;
+    const ago = state.agouti;
+
+    if (!ext) return "Basis unklar (Extension fehlt)";
+
+    if (ext === "e/e") {
+        return "Chestnut";
+    }
+
+    if (!ago) {
+        return "Black/Bay-Basis (Agouti unklar)";
+    }
+
+    const [a1, a2] = ago.split("/");
+    const rank = { Ap: 4, A1: 3, At: 2, a0: 1 };
+    const top = (rank[a1] || 0) >= (rank[a2] || 0) ? a1 : a2;
+
+    if (top === "Ap") return "Wildbay";
+    if (top === "A1") return "Bay";
+    if (top === "At") return "Sealbrown";
+    return "Black";
+}
+
+function resolvePhenotypeFromState(state) {
+    const base = resolveBaseFromState(state);
+
+    const creamCount = genotypeAlleleCount(state.cream, "Cr");
+    const hasDun = genotypeHasAllele(state.dun, "D");
+    const hasSilver = genotypeHasAllele(state.silver, "Z");
+    const hasPearl = genotypeAlleleCount(state.pearl, "pl") === 2;
+    const hasPangare = genotypeHasAllele(state.pangare, "Pa");
+    const hasRoan = genotypeHasAllele(state.roan, "Rn");
+    const hasTobiano = genotypeHasAllele(state.tobiano, "To");
+    const hasSabino = genotypeHasAllele(state.sabino, "Sb");
+    const hasWhite = genotypeHasAllele(state.white, "W");
+    const hasOvero = genotypeHasAllele(state.overo, "Ov");
+    const hasSplashed = genotypeHasAllele(state.splashed, "Spl");
+    const hasLeopard = genotypeHasAllele(state.leopard, "Lp");
+    const hasPATN1 = genotypeHasAllele(state.patn1, "PATN1");
+    const hasRabicano = genotypeHasAllele(state.rabicano, "Rb");
+    const hasGrey = genotypeHasAllele(state.grey, "G");
+    const hasChampagne = genotypeHasAllele(state.champagne, "Ch");
+    const isFlaxen = state.flaxen === "f/f";
+    const hasSooty = genotypeHasAllele(state.sooty, "Sty");
+
+    let label = base;
+
+    if (hasChampagne) {
+        if (base === "Chestnut") label = "Gold Champagne";
+        else if (base === "Bay" || base === "Wildbay") label = "Amber Champagne";
+        else if (base === "Sealbrown") label = "Sable Champagne";
+        else if (base === "Black") label = "Classic Champagne";
+        else label = `${base} + Champagne`;
+    }
+
+    if (creamCount === 1) {
+        if (base === "Chestnut") label = "Palomino";
+        else if (base === "Bay" || base === "Wildbay") label = "Buckskin";
+        else if (base === "Sealbrown") label = "Smoky Brown";
+        else if (base === "Black") label = "Smoky Black";
+        else label = `${label} + Cream`;
+    }
+
+    if (creamCount === 2) {
+        if (base === "Chestnut") label = "Cremello";
+        else if (base === "Bay" || base === "Wildbay") label = "Perlino";
+        else if (base === "Sealbrown") label = "Sealbrown Cream";
+        else if (base === "Black") label = "Smoky Cream";
+        else label = `${label} + Double Cream`;
+    }
+
+    if (hasDun) {
+        if (label === "Chestnut") label = "Red Dun";
+        else if (label === "Bay" || label === "Wildbay") label = "Classic Dun";
+        else if (label === "Sealbrown") label = "Brown Dun";
+        else if (label === "Black") label = "Grulla";
+        else label = `${label} + Dun`;
+    }
+
+    if (hasSilver && !/Chestnut|Palomino|Cremello|Gold Champagne/.test(label)) {
+        label = `Silver ${label}`;
+    }
+
+    if (isFlaxen && (base === "Chestnut" || label === "Chestnut")) {
+        label = "Flaxen Chestnut";
+    }
+
+    if (hasSooty) {
+        label = `${label} (Sooty)`;
+    }
+
+    if (hasPearl) {
+        label = `${label} + Pearl`;
+    }
+
+    if (hasPangare) {
+        label = `${label} + Pangare`;
+    }
+
+    if (hasRoan) {
+        label = `${label} Roan`;
+    }
+
+    const pinto = [];
+    if (hasTobiano) pinto.push("Tobiano");
+    if (hasSabino) pinto.push("Sabino");
+    if (hasWhite) pinto.push("Dominant White");
+    if (hasOvero) pinto.push("Overo");
+    if (hasSplashed) pinto.push("Splashed");
+    if (pinto.length) {
+        label = `${label} (${pinto.join(" + ")})`;
+    }
+
+    if (hasLeopard) {
+        label = `${label} (${hasPATN1 ? "Leopard/PATN1" : "Appaloosa"})`;
+    }
+
+    if (hasRabicano) {
+        label = `${label} (Rabicano)`;
+    }
+
+    if (hasGrey) {
+        label = `${label} (Grey)`;
+    }
+
+    return label;
+}
+
+function buildOffspringStates(geneDistributions) {
+    const entries = Object.entries(geneDistributions).filter(([, dist]) => Array.isArray(dist) && dist.length);
+    if (!entries.length) return [{ state: {}, prob: 1 }];
+
+    let states = [{ state: {}, prob: 1 }];
+
+    for (const [gene, dist] of entries) {
+        const next = [];
+        for (const root of states) {
+            for (const variant of dist) {
+                next.push({
+                    state: { ...root.state, [gene]: variant.genotype },
+                    prob: root.prob * variant.prob
+                });
+            }
+        }
+        states = next;
+    }
+
+    return states;
+}
+
+function formatPercent(value) {
+    return `${(value * 100).toFixed(value * 100 % 1 === 0 ? 0 : 1)}%`;
+}
+
+function renderColorAnalysisReport(mareName, stallionName, mareText, stallionText, options = {}) {
+    const mareGenes = extractColorGenes(mareText);
+    const stallionGenes = extractColorGenes(stallionText);
+
+    const geneDistributions = {
+        extension: genotypeDistribution(mareGenes.extension, stallionGenes.extension),
+        agouti: genotypeDistribution(mareGenes.agouti, stallionGenes.agouti),
+        cream: genotypeDistribution(mareGenes.cream, stallionGenes.cream),
+        dun: genotypeDistribution(mareGenes.dun, stallionGenes.dun),
+        silver: genotypeDistribution(mareGenes.silver, stallionGenes.silver),
+        pearl: genotypeDistribution(mareGenes.pearl, stallionGenes.pearl),
+        pangare: genotypeDistribution(mareGenes.pangare, stallionGenes.pangare),
+        rabicano: genotypeDistribution(mareGenes.rabicano, stallionGenes.rabicano),
+        roan: genotypeDistribution(mareGenes.roan, stallionGenes.roan),
+        tobiano: genotypeDistribution(mareGenes.tobiano, stallionGenes.tobiano),
+        sabino: genotypeDistribution(mareGenes.sabino, stallionGenes.sabino),
+        white: genotypeDistribution(mareGenes.white, stallionGenes.white),
+        overo: genotypeDistribution(mareGenes.overo, stallionGenes.overo),
+        splashed: genotypeDistribution(mareGenes.splashed, stallionGenes.splashed),
+        leopard: genotypeDistribution(mareGenes.leopard, stallionGenes.leopard),
+        patn1: genotypeDistribution(mareGenes.patn1, stallionGenes.patn1),
+        grey: genotypeDistribution(mareGenes.grey, stallionGenes.grey),
+        champagne: genotypeDistribution(mareGenes.champagne, stallionGenes.champagne),
+        flaxen: genotypeDistribution(mareGenes.flaxen, stallionGenes.flaxen),
+        sooty: genotypeDistribution(mareGenes.sooty, stallionGenes.sooty)
+    };
+
+    const offspringStates = buildOffspringStates(geneDistributions);
+    const phenotypeProb = new Map();
+
+    for (const entry of offspringStates) {
+        const label = resolvePhenotypeFromState(entry.state);
+        phenotypeProb.set(label, (phenotypeProb.get(label) || 0) + entry.prob);
+    }
+
+    const phenotypeRows = [...phenotypeProb.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([label, prob]) => `<div class="color-row"><span class="color-row-label">${escapeHtml(label)}</span><span class="color-row-value">${formatPercent(prob)}</span></div>`)
+        .join("");
+
+    const renderDist = (title, dist) => {
+        if (!dist) return "";
+        const dominanceWeight = (genotype) => (genotype.match(/[A-Z]/g) || []).length;
+        const text = dist
+            .sort((a, b) => {
+                const byProb = b.prob - a.prob;
+                if (byProb !== 0) return byProb;
+
+                const byDominance = dominanceWeight(b.genotype) - dominanceWeight(a.genotype);
+                if (byDominance !== 0) return byDominance;
+
+                return a.genotype.localeCompare(b.genotype, "de", { sensitivity: "base" });
+            })
+            .map((x) => `<span class="color-dist-item">${escapeHtml(x.genotype)} (${formatPercent(x.prob)})</span>`)
+            .join("");
+
+        return `
+            <div class="color-dist-row">
+                <span class="color-dist-gene">${escapeHtml(title)}</span>
+                <span class="color-dist-line">${text}</span>
+            </div>
+        `;
+    };
+
+    const geneLabels = {
+        extension: "Extension",
+        agouti: "Agouti",
+        dun: "Dun",
+        cream: "Cream",
+        champagne: "Champagne",
+        grey: "Grey",
+        silver: "Silver",
+        pearl: "Pearl",
+        pangare: "Pangare",
+        rabicano: "Rabicano",
+        roan: "Roan",
+        tobiano: "Tobiano",
+        sabino: "Sabino",
+        white: "White",
+        overo: "Overo",
+        splashed: "Splashed",
+        leopard: "Appaloosa/Leopard",
+        patn1: "PATN1",
+        sooty: "Sooty",
+        flaxen: "Flaxen"
+    };
+
+    const formatPair = (pair) => pair ? pair.join("/") : "nicht erkannt";
+
+    const parentBreakdownRows = Object.keys(geneLabels)
+        .filter((key) => mareGenes[key] || stallionGenes[key])
+        .map((key) => `
+            <div class="color-parent-row">
+                <span class="color-parent-gene">${geneLabels[key]}</span>
+                <span class="color-parent-value">${escapeHtml(formatPair(mareGenes[key]))}</span>
+                <span class="color-parent-value">${escapeHtml(formatPair(stallionGenes[key]))}</span>
+            </div>
+        `)
+        .join("");
+
+    const distributionRows = Object.keys(geneLabels)
+        .map((key) => renderDist(geneLabels[key], geneDistributions[key]))
+        .filter(Boolean)
+        .join("");
+
+    const knownGeneCount = Object.values(geneDistributions).filter((dist) => Array.isArray(dist)).length;
+    const compactClass = options.compact ? " color-report-compact" : "";
+
+    return `
+        <div class="color-report${compactClass}">
+            <div class="color-report-head">
+                <h3>Farbvererbung</h3>
+                <p><b>${escapeHtml(mareName || "Stute")}</b> × <b>${escapeHtml(stallionName || "Hengst")}</b></p>
+                <div class="color-meta">
+                    <span class="color-pill">Berücksichtigte Gene: ${knownGeneCount}</span>
+                </div>
+            </div>
+
+            <div class="color-report-grid">
+                ${parentBreakdownRows ? `
+                    <section class="color-card">
+                        <h4>Eltern-Gene</h4>
+                        <div class="color-parent-head">
+                            <span></span>
+                            <span>Mutter</span>
+                            <span>Vater</span>
+                        </div>
+                        <div class="color-parent-grid">${parentBreakdownRows}</div>
+                    </section>
+                ` : ""}
+
+                <section class="color-card color-card-strong">
+                    <h4>Alle berechneten Farb-Möglichkeiten</h4>
+                    <div class="color-list">
+                        ${phenotypeRows || `<div class="color-row"><span class="color-row-label">Unklar</span><span class="color-row-value">Zu wenige Gene erkannt</span></div>`}
+                    </div>
+                </section>
+
+                ${distributionRows ? `
+                    <section class="color-card">
+                        <h4>Gen-Verteilung</h4>
+                        <div class="color-list">${distributionRows}</div>
+                    </section>
+                ` : ""}
+            </div>
+        </div>
+    `;
+}
+
+function analyzeColorInput() {
+    const out = document.getElementById("color_result");
+    if (!out) return;
+
+    try {
+        const mareRaw = document.getElementById("color_mare_raw")?.value?.trim() || "";
+        const stallionRaw = document.getElementById("color_stallion_raw")?.value?.trim() || "";
+        const mareStored = pferde[document.getElementById("colorMareSelect")?.value];
+        const stallionStored = pferde[document.getElementById("colorStallionSelect")?.value];
+
+        out.innerHTML = `<p class="color-status">Analysiere Farbgene...</p>`;
+
+        const mareText = mareRaw || mareStored?.farbe || "";
+        const stallionText = stallionRaw || stallionStored?.farbe || "";
+
+        if (!mareText || !stallionText) {
+            out.innerHTML = `<p class="color-status">Bitte Stute und Hengst auswählen oder Rohdaten einfügen.</p>`;
+            return;
+        }
+
+        try {
+            out.innerHTML = renderColorAnalysisReport(
+                mareStored?.name || "Stute",
+                stallionStored?.name || "Hengst",
+                mareText,
+                stallionText,
+                { compact: false }
+            );
+        } catch (error) {
+            out.innerHTML = `<p class="color-status color-status-error">Farbanalyse fehlgeschlagen: ${escapeHtml(error?.message || "Unbekannter Fehler")}</p>`;
+            return;
+        }
+    } catch (error) {
+        out.innerHTML = `<p class="color-status color-status-error">Farbanalyse fehlgeschlagen: ${escapeHtml(error?.message || "Unbekannter Fehler")}</p>`;
+    }
 }
 
 
@@ -1324,14 +2596,23 @@ function hasCompleteExteriorGenesForPair(mare, stallion) {
     const mareKeys = Object.keys(mare?.exterieur || {});
     if (!mareKeys.length) return false;
 
+    let sharedComplete = 0;
+
     for (const key of mareKeys) {
         const genes = stallion?.exterieur?.[key]?.genes;
-        if (!Array.isArray(genes) || genes.length < 8) {
-            return false;
+        if (Array.isArray(genes) && genes.length >= 8) {
+            sharedComplete++;
         }
     }
 
-    return true;
+    if (sharedComplete > 0) {
+        return true;
+    }
+
+    // Fallback for legacy imports with differing trait keys: allow stallions that
+    // have at least one complete exterior trait block.
+    const stallionTraits = Object.values(stallion?.exterieur || {});
+    return stallionTraits.some((entry) => Array.isArray(entry?.genes) && entry.genes.length >= 8);
 }
 
 function showStallionDetailFromMare(mareIndex, stallionIndex) {
@@ -1342,10 +2623,115 @@ function showStallionDetailFromMare(mareIndex, stallionIndex) {
         return;
     }
 
-    showStallionView(stallion, {
+    showFoalGeneOverview(mare, stallion, {
         backAction: `showMareCombinationsByRefresh(${mareIndex})`,
         backLabel: "Zurück zur Hengstkombi"
     });
+}
+
+function showFoalGeneOverview(mare, stallion, options = {}) {
+
+    document.getElementById("db_sortbar").style.display = "none";
+    document.querySelector("#datenbank .hero").style.display = "none";
+
+    if (!mare || !stallion) return;
+
+    const container = document.getElementById("db_liste");
+    const backAction = options.backAction || "renderDatabase()";
+    const backLabel = options.backLabel || "Zurück";
+    const intAvg = calculateInteriorAverage(stallion.interieur || {});
+    const extAvg = calculateExteriorAverage(stallion.exterieur || {});
+
+    const range = calculateExteriorRange(mare, stallion);
+    const inbreeding = getInbreedingRisk(mare, stallion);
+
+    const partBlocks = (range.parts || []).map((part) => {
+        const bestStyle = getExteriorScoreStyle(part.best.score);
+        const worstStyle = getExteriorScoreStyle(part.worst.score);
+
+        const bestGenes = part.best.genes.join(" ");
+        const worstGenes = part.worst.genes.join(" ");
+
+        return `
+            <div class="foal-legacy-part-card">
+                <h4>${escapeHtml(part.key)}</h4>
+                <div class="foal-legacy-gene-tone" style="--tone-border:${bestStyle.border}; --tone-dot:${bestStyle.dot};">
+                    <div class="foal-legacy-gene-line"><span class="foal-tone-dot"></span><b>Best (${part.best.match.totalCorrect}/8)</b> ${escapeHtml(bestGenes)}</div>
+                </div>
+
+                <div class="foal-legacy-gene-tone" style="--tone-border:${worstStyle.border}; --tone-dot:${worstStyle.dot};">
+                    <div class="foal-legacy-gene-line"><span class="foal-tone-dot"></span><b>Worst (${part.worst.match.totalCorrect}/8)</b> ${escapeHtml(worstGenes)}</div>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    const inbreedingInfo = inbreeding.isRisk
+        ? `<div class="foal-status foal-status-risk"><b>Inzucht:</b> ${escapeHtml(inbreeding.reasons.join(" · "))}</div>`
+        : `<div class="foal-status"><b>Inzucht:</b> Kein Hinweis</div>`;
+
+    let colorDetailHtml = `<p class="color-status">Für diese Paarung sind keine Farbdaten bei beiden Eltern gespeichert.</p>`;
+    if (mare?.farbe && stallion?.farbe) {
+        try {
+            colorDetailHtml = renderColorAnalysisReport(mare.name, stallion.name, mare.farbe, stallion.farbe, { compact: true });
+        } catch (error) {
+            colorDetailHtml = `<p class="color-status color-status-error">Farbanalyse fehlgeschlagen: ${escapeHtml(error?.message || "Unbekannter Fehler")}</p>`;
+        }
+    }
+
+    container.innerHTML = `
+        <div class="detail-header">
+            <button class="btn back-btn" onclick="${backAction}">${backLabel}</button>
+
+            <div class="detail-title-block">
+                <h2>${escapeHtml(stallion.name)}</h2>
+                <p class="detail-meta">GP ${stallion.gp || 0} · Int Ø ${intAvg} · Ext Ø ${extAvg}</p>
+            </div>
+
+            <div class="view-switch">
+                <button id="btnFoalZucht" class="active" onclick="showFoalDetailTab('zucht')">Exterieur</button>
+                <button id="btnFoalFarben" onclick="showFoalDetailTab('farben')">Farben</button>
+            </div>
+        </div>
+
+        <div id="foal-view-zucht">
+            ${inbreedingInfo}
+
+            <h2>Exterieur Potenzial</h2>
+            <p class="foal-legacy-line"><b>Paarung:</b> ${escapeHtml(mare.name)} × ${escapeHtml(stallion.name)}</p>
+            <p class="foal-legacy-line"><b>Best Case:</b> ${range.best} · Treffer ${range.bestCorrectTotal}/${range.totalSlots} (${range.bestCorrectPercent}%)</p>
+            <p class="foal-legacy-line"><b>Worst Case:</b> ${range.worst} · Treffer ${range.worstCorrectTotal}/${range.totalSlots} (${range.worstCorrectPercent}%)</p>
+
+            ${partBlocks ? `<div class="foal-legacy-parts">${partBlocks}</div>` : `<div class="foal-empty">Keine passenden Exterieur-Gene für diese Kombination gefunden.</div>`}
+        </div>
+
+        <div id="foal-view-farben" style="display:none;">
+            ${colorDetailHtml}
+        </div>
+    `;
+}
+
+function showFoalDetailTab(view) {
+    const zucht = document.getElementById("foal-view-zucht");
+    const farben = document.getElementById("foal-view-farben");
+
+    const btnZucht = document.getElementById("btnFoalZucht");
+    const btnFarben = document.getElementById("btnFoalFarben");
+
+    if (!zucht || !farben || !btnZucht || !btnFarben) return;
+
+    if (view === "farben") {
+        zucht.style.display = "none";
+        farben.style.display = "block";
+        btnZucht.classList.remove("active");
+        btnFarben.classList.add("active");
+        return;
+    }
+
+    zucht.style.display = "block";
+    farben.style.display = "none";
+    btnZucht.classList.add("active");
+    btnFarben.classList.remove("active");
 }
 
 function showStallionView(horse, options = {}) {
@@ -1384,6 +2770,43 @@ function showStallionView(horse, options = {}) {
 }
 
 
+const mareCombinationViewState = {
+    sortBy: "best",
+    sortDir: "asc",
+    inbreedingFilter: "all"
+};
+
+function defaultSortDirection(column) {
+    if (column === "gp") return "desc";
+    return "asc";
+}
+
+function setMareCombinationSort(mareIndex, column) {
+    if (mareCombinationViewState.sortBy === column) {
+        mareCombinationViewState.sortDir = mareCombinationViewState.sortDir === "asc" ? "desc" : "asc";
+    } else {
+        mareCombinationViewState.sortBy = column;
+        mareCombinationViewState.sortDir = defaultSortDirection(column);
+    }
+
+    showMareCombinationsByRefresh(mareIndex);
+}
+
+function setMareInbreedingFilter(mareIndex, value) {
+    mareCombinationViewState.inbreedingFilter = value || "all";
+    showMareCombinationsByRefresh(mareIndex);
+}
+
+function renderSortLabel(label, column) {
+    if (mareCombinationViewState.sortBy !== column) {
+        return label;
+    }
+
+    const dir = mareCombinationViewState.sortDir === "asc" ? "▲" : "▼";
+    return `${label} ${dir}`;
+}
+
+
 
 function showMareCombinations(mare) {
 
@@ -1395,14 +2818,10 @@ function showMareCombinations(mare) {
     let stallions = pferde.filter(p => p.geschlecht === "Hengst");
 
     const stallionSearchRaw = (document.getElementById("stallionSearch")?.value || "").trim().toLowerCase();
-
-    stallions = stallions.filter((horse) => {
-        const genesPass = hasCompleteExteriorGenesForPair(mare, horse);
-        const searchPass = !stallionSearchRaw || (horse.name || "").toLowerCase().includes(stallionSearchRaw);
-        return genesPass && searchPass;
-    });
-
-    const mode = document.getElementById("sortMode")?.value || "best";
+    const inbreedingFilter = mareCombinationViewState.inbreedingFilter || "all";
+    const sortBy = mareCombinationViewState.sortBy || "best";
+    const sortDir = mareCombinationViewState.sortDir || defaultSortDirection(sortBy);
+    const sortFactor = sortDir === "asc" ? 1 : -1;
 
     const rangeCache = new Map();
     const getRange = (stallion) => {
@@ -1413,43 +2832,82 @@ function showMareCombinations(mare) {
         return rangeCache.get(key);
     };
 
+    const riskCache = new Map();
+    const getRisk = (stallion) => {
+        const key = stallion.name;
+        if (!riskCache.has(key)) {
+            riskCache.set(key, getInbreedingRisk(mare, stallion));
+        }
+        return riskCache.get(key);
+    };
+
+    stallions = stallions.filter((horse) => {
+        const genesPass = hasCompleteExteriorGenesForPair(mare, horse);
+        const searchPass = !stallionSearchRaw || (horse.name || "").toLowerCase().includes(stallionSearchRaw);
+
+        if (!genesPass || !searchPass) {
+            return false;
+        }
+
+        const risk = getRisk(horse);
+
+        if (inbreedingFilter === "risk") return risk.isRisk;
+        if (inbreedingFilter === "safe") return !risk.isRisk;
+
+        return true;
+    });
+
+    if (!stallions.length && inbreedingFilter !== "all") {
+        mareCombinationViewState.inbreedingFilter = "all";
+        return showMareCombinations(mare);
+    }
+
     stallions.sort((a, b) => {
 
         const aRange = getRange(a);
         const bRange = getRange(b);
+        const aRisk = getRisk(a).isRisk ? 1 : 0;
+        const bRisk = getRisk(b).isRisk ? 1 : 0;
+        const aSpread = Number(aRange.worst) - Number(aRange.best);
+        const bSpread = Number(bRange.worst) - Number(bRange.best);
 
-        if (mode === "gp") {
-            return b.gp - a.gp;
-        }
+        let compare = 0;
 
-        if (mode === "name") {
-            return a.name.localeCompare(b.name);
-        }
+        if (sortBy === "name") compare = a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+        if (sortBy === "gp") compare = Number(a.gp || 0) - Number(b.gp || 0);
+        if (sortBy === "best") compare = Number(aRange.best) - Number(bRange.best);
+        if (sortBy === "worst") compare = Number(aRange.worst) - Number(bRange.worst);
+        if (sortBy === "spread") compare = aSpread - bSpread;
+        if (sortBy === "inbreeding") compare = aRisk - bRisk;
 
-        if (mode === "best") {
-            return Number(aRange.best) - Number(bRange.best);
-        }
+        if (compare !== 0) return compare * sortFactor;
 
-        if (mode === "worst") {
-            return Number(aRange.worst) - Number(bRange.worst);
-        }
-
+        return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
     });
+
+    const inbreedingCount = stallions.filter((stallion) => getRisk(stallion).isRisk).length;
 
     const stallionRows = stallions.map((stallion, index) => {
         const range = getRange(stallion);
         const spread = (Number(range.worst) - Number(range.best)).toFixed(2);
-        const owner = normalizeOwner(stallion.besitzer);
+        const inbreeding = getRisk(stallion);
+        const rowStyle = inbreeding.isRisk
+            ? ` style="background: rgba(244, 67, 54, 0.18);"`
+            : "";
+        const inbreedingReason = inbreeding.reasons.join(" · ");
+        const inbreedingCell = inbreeding.isRisk
+            ? `<span title="${escapeHtml(inbreedingReason)}" style="color:#8e1b1b; font-weight:700;">Ja</span>`
+            : `<span style="color:#2e7d32; font-weight:600;">Nein</span>`;
 
         return `
-            <tr>
+            <tr${rowStyle}>
                 <td>${index + 1}</td>
                 <td><b>${escapeHtml(stallion.name)}</b></td>
-                <td>${escapeHtml(owner)}</td>
                 <td>${stallion.gp}</td>
                 <td><span class="score-chip score-chip-good">${range.best}</span></td>
                 <td><span class="score-chip score-chip-warn">${range.worst}</span></td>
                 <td>${spread}</td>
+                <td>${inbreedingCell}</td>
                 <td>
                     <button class="btn btn-mini" onclick="showStallionDetailFromMare(${pferde.indexOf(mare)}, ${pferde.indexOf(stallion)})">Details</button>
                 </td>
@@ -1474,26 +2932,12 @@ function showMareCombinations(mare) {
         <div id="view-zucht">
 
             <div class="compare-toolbar">
-                <label class="compare-sort-label" for="sortMode">Sortierung</label>
-                <select class="compare-sort-select" id="sortMode" onchange="showMareCombinationsByRefresh(${pferde.indexOf(mare)})">
-
-                <option value="name" ${mode === "name" ? "selected" : ""}>
-                    Name
-                </option>
-
-                <option value="gp" ${mode === "gp" ? "selected" : ""}>
-                    GP
-                </option>
-
-                <option value="best" ${mode === "best" ? "selected" : ""}>
-                    Best
-                </option>
-
-                <option value="worst" ${mode === "worst" ? "selected" : ""}>
-                    Worst
-                </option>
-
-            </select>
+                <label class="compare-sort-label" for="inbreedingFilter">Inzucht-Filter</label>
+                <select class="compare-sort-select" id="inbreedingFilter" onchange="setMareInbreedingFilter(${pferde.indexOf(mare)}, this.value)">
+                    <option value="all" ${inbreedingFilter === "all" ? "selected" : ""}>Alle</option>
+                    <option value="safe" ${inbreedingFilter === "safe" ? "selected" : ""}>Nur ohne Hinweis</option>
+                    <option value="risk" ${inbreedingFilter === "risk" ? "selected" : ""}>Nur mit Hinweis</option>
+                </select>
 
                 <span class="compare-toolbar-spacer" aria-hidden="true"></span>
 
@@ -1510,19 +2954,19 @@ function showMareCombinations(mare) {
 
             <p><b>Hengst-Kombinationen</b></p>
 
-            <p class="compare-summary">${stallions.length} Treffer · nur Hengste mit ausgeschlüsseltem Exterieur</p>
+            <p class="compare-summary">${stallions.length} Treffer · nur Hengste mit ausgeschlüsseltem Exterieur · ${inbreedingCount} mit Inzucht-Hinweis</p>
 
             <div class="compare-table-wrap">
                 <table class="compare-table">
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Name</th>
-                            <th>Besitzer</th>
-                            <th>GP</th>
-                            <th>Best</th>
-                            <th>Worst</th>
-                            <th>Spanne</th>
+                            <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'name')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Name", "name")}</button></th>
+                            <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'gp')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("GP", "gp")}</button></th>
+                            <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'best')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Best", "best")}</button></th>
+                            <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'worst')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Worst", "worst")}</button></th>
+                            <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'spread')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Spanne", "spread")}</button></th>
+                            <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'inbreeding')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Inzucht", "inbreeding")}</button></th>
                             <th></th>
                         </tr>
                     </thead>
@@ -2022,5 +3466,6 @@ function getCategoryBestLK(horse, disciplines) {
 
 window.addEventListener("DOMContentLoaded", async () => {
     await loadPferde();
+    initColorTools();
     renderDatabase();
 });
