@@ -4,6 +4,7 @@
 
 const HORSE_STORE_KEY = "pferde";
 const HORSE_API_PATH = "/api/pferde";
+const HORSE_ONE_TIME_WIPE_KEY = "pferde_one_time_wipe_2026_07_04";
 
 let pferde = [];
 
@@ -74,6 +75,35 @@ async function loadPferde() {
     } catch {
         pferde = localPferde;
         writeLocalPferde(pferde);
+    }
+}
+
+async function runOneTimeHorseWipeIfNeeded() {
+    let alreadyDone = false;
+
+    try {
+        alreadyDone = localStorage.getItem(HORSE_ONE_TIME_WIPE_KEY) === "1";
+    } catch {
+        alreadyDone = false;
+    }
+
+    if (alreadyDone) {
+        return;
+    }
+
+    pferde = [];
+    writeLocalPferde(pferde);
+
+    try {
+        await persistPferdeToRemote();
+    } catch {
+        // If remote sync is unavailable now, local data is still cleared immediately.
+    }
+
+    try {
+        localStorage.setItem(HORSE_ONE_TIME_WIPE_KEY, "1");
+    } catch {
+        // Ignore storage issues; the clear operation itself already ran.
     }
 }
 
@@ -3397,6 +3427,7 @@ function getCategoryBestLK(horse, disciplines) {
 
 window.addEventListener("DOMContentLoaded", async () => {
     await loadPferde();
+    await runOneTimeHorseWipeIfNeeded();
     initColorTools();
     renderDatabase();
 });
