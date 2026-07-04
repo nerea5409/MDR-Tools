@@ -549,124 +549,55 @@ function extractPedigree(text) {
     };
 }
 
-function getPedigreeAncestorsWithinGenerations(horse, maxGenerations = 3) {
-    const names = Array.isArray(horse?.abstammung?.ahnen) ? horse.abstammung.ahnen : [];
-    const limitsByGeneration = [2, 6, 14]; // 1: parents, 2: +grandparents, 3: +great-grandparents
-    const limit = limitsByGeneration[Math.max(0, Math.min(maxGenerations, 3)) - 1] || 0;
-
+function getFirstSevenPedigreeEntries(horse) {
+    const ownName = String(horse?.name || "").trim();
+    const pedigreeNames = Array.isArray(horse?.abstammung?.ahnen) ? horse.abstammung.ahnen.slice(0, 6) : [];
+    const names = [ownName, ...pedigreeNames];
     const displayByKey = new Map();
-    const ancestorKeys = [];
+    const keys = [];
 
-    for (const originalName of names.slice(0, limit)) {
+    for (const originalName of names) {
         const key = normalizeHorseName(originalName);
         if (!key || key === "unbekannt") continue;
-        if (!displayByKey.has(key)) {
-            displayByKey.set(key, originalName);
-            ancestorKeys.push(key);
-        }
-    }
-
-    // Fallback for imports that only have labels without full ahnen list.
-    if (!ancestorKeys.length) {
-        for (const parentName of [horse?.abstammung?.vater, horse?.abstammung?.mutter]) {
-            const key = normalizeHorseName(parentName);
-            if (!key || key === "unbekannt" || displayByKey.has(key)) continue;
-            displayByKey.set(key, parentName);
-            ancestorKeys.push(key);
-        }
+        if (displayByKey.has(key)) continue;
+        displayByKey.set(key, originalName);
+        keys.push(key);
     }
 
     return {
-        ancestorSet: new Set(ancestorKeys),
-        ancestorList: ancestorKeys,
+        ancestorSet: new Set(keys),
         displayByKey
     };
 }
 
-function hasAncestorNameMatch(ancestorList, horseName) {
-    const target = normalizeHorseName(horseName);
-    if (!target) return false;
-
-    for (const ancestor of ancestorList || []) {
-        if (!ancestor) continue;
-        if (ancestor === target) return true;
-
-        // Fallback for remaining display/name variants after normalization.
-        if ((ancestor.length >= 8 && ancestor.includes(target)) || (target.length >= 8 && target.includes(ancestor))) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 function getInbreedingRisk(mare, stallion, horses = pferde) {
-    const mareName = normalizeHorseName(mare?.name);
-    const stallionName = normalizeHorseName(stallion?.name);
-
     const empty = {
         isRisk: false,
         reasons: [],
         sharedAncestors: []
     };
 
-    if (!mareName || !stallionName) {
-        return empty;
-    }
-
-    const reasons = [];
-
-    if (mareName === stallionName) {
-        reasons.push("Gleiches Pferd");
-    }
-
-    const mareParents = [mare?.abstammung?.vater, mare?.abstammung?.mutter]
-        .map(normalizeHorseName)
-        .filter(Boolean);
-    const stallionParents = [stallion?.abstammung?.vater, stallion?.abstammung?.mutter]
-        .map(normalizeHorseName)
-        .filter(Boolean);
-
-    if (mareParents.includes(stallionName)) {
-        reasons.push("Hengst ist direkter Elternteil der Stute");
-    }
-
-    if (stallionParents.includes(mareName)) {
-        reasons.push("Stute ist direkter Elternteil des Hengstes");
-    }
-
-    // For foal inbreeding checks we only use:
-    // foal, parents, grandparents, great-grandparents.
-    // Therefore, per parent horse we only include 2 ancestor generations.
-    const MAX_GENERATIONS = 2;
-    const marePedigree = getPedigreeAncestorsWithinGenerations(mare, MAX_GENERATIONS);
-    const stallionPedigree = getPedigreeAncestorsWithinGenerations(stallion, MAX_GENERATIONS);
+    // Exactly as requested: compare only 7 names per horse (self + first 6 pedigree entries).
+    const marePedigree = getFirstSevenPedigreeEntries(mare);
+    const stallionPedigree = getFirstSevenPedigreeEntries(stallion);
     const mareAncestors = marePedigree.ancestorSet;
     const stallionAncestors = stallionPedigree.ancestorSet;
 
     const sharedAncestors = [...mareAncestors].filter((name) => stallionAncestors.has(name));
 
-    if (mareAncestors.has(stallionName) || hasAncestorNameMatch(marePedigree.ancestorList, stallion?.name)) {
-        reasons.push("Hengst steht im Stammbaum der Stute");
+    if (!sharedAncestors.length) {
+        return empty;
     }
 
-    if (stallionAncestors.has(mareName) || hasAncestorNameMatch(stallionPedigree.ancestorList, mare?.name)) {
-        reasons.push("Stute steht im Stammbaum des Hengstes");
-    }
-
-    if (sharedAncestors.length) {
-        const prettyNames = sharedAncestors
-            .slice(0, 4)
-            .map((key) => marePedigree.displayByKey.get(key) || stallionPedigree.displayByKey.get(key) || key);
-        const suffix = sharedAncestors.length > 4 ? " ..." : "";
-        reasons.push(`Gemeinsame Vorfahren: ${prettyNames.join(", ")}${suffix}`);
-    }
-
-    const uniqueReasons = Array.from(new Set(reasons));
+    const prettyNames = sharedAncestors
+        .slice(0, 4)
+        .map((key) => marePedigree.displayByKey.get(key) || stallionPedigree.displayByKey.get(key) || key);
+    const suffix = sharedAncestors.length > 4 ? " ..." : "";
+    const reasons = [`Gemeinsame Vorfahren: ${prettyNames.join(", ")}${suffix}`];
 
     return {
-        isRisk: uniqueReasons.length > 0,
-        reasons: uniqueReasons,
+        isRisk: true,
+        reasons,
         sharedAncestors
     };
 }
