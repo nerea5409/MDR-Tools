@@ -337,6 +337,14 @@ function updateBreedingInbreedingStatus() {
         return;
     }
 
+    if (inbreeding.warningReasons?.length) {
+        box.style.border = "1px solid rgba(255, 143, 0, 0.45)";
+        box.style.background = "rgba(255, 193, 7, 0.16)";
+        box.style.color = "#8a4b00";
+        box.innerHTML = `<b>Prüfhinweis:</b> ${escapeHtml(inbreeding.warningReasons.join(" · "))}`;
+        return;
+    }
+
     box.style.border = "1px solid rgba(56, 142, 60, 0.35)";
     box.style.background = "rgba(76, 175, 80, 0.12)";
     box.style.color = "#1b5e20";
@@ -564,40 +572,86 @@ function getFirstSevenPedigreeEntries(horse) {
     }
 
     return {
+        ancestorList: keys,
         ancestorSet: new Set(keys),
         displayByKey
     };
+}
+
+function isLikelySameHorseName(normalizedA, normalizedB) {
+    if (!normalizedA || !normalizedB) return false;
+    if (normalizedA === normalizedB) return true;
+
+    // Handles common import variants like "... q" vs "... q anu".
+    if (normalizedA.length >= 8 && normalizedB.includes(normalizedA)) return true;
+    if (normalizedB.length >= 8 && normalizedA.includes(normalizedB)) return true;
+
+    return false;
 }
 
 function getInbreedingRisk(mare, stallion, horses = pferde) {
     const empty = {
         isRisk: false,
         reasons: [],
-        sharedAncestors: []
+        sharedAncestors: [],
+        warningReasons: []
     };
 
     // Exactly as requested: compare only 7 names per horse (self + first 6 pedigree entries).
     const marePedigree = getFirstSevenPedigreeEntries(mare);
     const stallionPedigree = getFirstSevenPedigreeEntries(stallion);
-    const mareAncestors = marePedigree.ancestorSet;
-    const stallionAncestors = stallionPedigree.ancestorSet;
+    const mareAncestors = marePedigree.ancestorList || [];
+    const stallionAncestors = stallionPedigree.ancestorList || [];
 
-    const sharedAncestors = [...mareAncestors].filter((name) => stallionAncestors.has(name));
+    const sharedAncestors = [];
+    const similarNamePairs = [];
 
-    if (!sharedAncestors.length) {
+    for (const mareKey of mareAncestors) {
+        for (const stallionKey of stallionAncestors) {
+            if (mareKey === stallionKey) {
+                if (!sharedAncestors.includes(mareKey)) {
+                    sharedAncestors.push(mareKey);
+                }
+                continue;
+            }
+
+            if (!isLikelySameHorseName(mareKey, stallionKey)) {
+                continue;
+            }
+
+            const pairKey = `${mareKey}__${stallionKey}`;
+            if (!similarNamePairs.some((pair) => pair.key === pairKey)) {
+                similarNamePairs.push({ mareKey, stallionKey, key: pairKey });
+            }
+        }
+    }
+
+    if (!sharedAncestors.length && !similarNamePairs.length) {
         return empty;
     }
 
-    const prettyNames = sharedAncestors
-        .slice(0, 4)
-        .map((key) => marePedigree.displayByKey.get(key) || stallionPedigree.displayByKey.get(key) || key);
-    const suffix = sharedAncestors.length > 4 ? " ..." : "";
-    const reasons = [`Gemeinsame Vorfahren: ${prettyNames.join(", ")}${suffix}`];
+    const reasons = [];
+    if (sharedAncestors.length) {
+        const prettyNames = sharedAncestors
+            .slice(0, 4)
+            .map((key) => marePedigree.displayByKey.get(key) || stallionPedigree.displayByKey.get(key) || key);
+        const suffix = sharedAncestors.length > 4 ? " ..." : "";
+        reasons.push(`Gemeinsame Vorfahren: ${prettyNames.join(", ")}${suffix}`);
+    }
+
+    const warningReasons = similarNamePairs.slice(0, 4).map((pair) => {
+        const mareName = marePedigree.displayByKey.get(pair.mareKey) || pair.mareKey;
+        const stallionName = stallionPedigree.displayByKey.get(pair.stallionKey) || pair.stallionKey;
+        return `Namensähnlich, bitte prüfen: ${mareName} <> ${stallionName}`;
+    });
+
+    reasons.push(...warningReasons);
 
     return {
-        isRisk: true,
+        isRisk: sharedAncestors.length > 0,
         reasons,
-        sharedAncestors
+        sharedAncestors,
+        warningReasons
     };
 }
 
@@ -1345,6 +1399,11 @@ function simulateBreeding() {
 
     document.getElementById("breeding_result").innerHTML = `
         <h2>Exterieur Potenzial</h2>
+        ${inbreeding.warningReasons?.length ? `
+            <div style="margin: 10px 0 12px; padding: 10px 12px; border: 1px solid rgba(255, 143, 0, 0.35); border-radius: 9px; background: rgba(255, 193, 7, 0.12); color: #8a4b00;">
+                <b>Prüfhinweis:</b> ${escapeHtml(inbreeding.warningReasons.join(" · "))}
+            </div>
+        ` : ""}
         <p><b>Best Case:</b> ${range.best} · Treffer ${range.bestCorrectTotal}/${range.totalSlots} (${range.bestCorrectPercent}%)</p>
         <p><b>Worst Case:</b> ${range.worst} · Treffer ${range.worstCorrectTotal}/${range.totalSlots} (${range.worstCorrectPercent}%)</p>
         ${partBlocks}
@@ -2598,7 +2657,9 @@ function showFoalGeneOverview(mare, stallion, options = {}) {
 
     const inbreedingInfo = inbreeding.isRisk
         ? `<div class="foal-status foal-status-risk"><b>Inzucht:</b> ${escapeHtml(inbreeding.reasons.join(" · "))}</div>`
-        : `<div class="foal-status"><b>Inzucht:</b> Kein Hinweis</div>`;
+        : inbreeding.warningReasons?.length
+            ? `<div class="foal-status" style="border-color: rgba(255,143,0,0.35); background: rgba(255,193,7,0.10); color:#8a4b00;"><b>Prüfhinweis:</b> ${escapeHtml(inbreeding.warningReasons.join(" · "))}</div>`
+            : `<div class="foal-status"><b>Inzucht:</b> Kein Hinweis</div>`;
 
     let colorDetailHtml = `<p class="color-status">Für diese Paarung sind keine Farbdaten bei beiden Eltern gespeichert.</p>`;
     if (mare?.farbe && stallion?.farbe) {
@@ -2823,11 +2884,15 @@ function showMareCombinations(mare) {
         const inbreeding = getRisk(stallion);
         const rowStyle = inbreeding.isRisk
             ? ` style="background: rgba(244, 67, 54, 0.18);"`
-            : "";
+            : (inbreeding.warningReasons?.length
+                ? ` style="background: rgba(255, 193, 7, 0.16);"`
+                : "");
         const inbreedingReason = inbreeding.reasons.join(" · ");
         const inbreedingCell = inbreeding.isRisk
             ? `<span title="${escapeHtml(inbreedingReason)}" style="color:#8e1b1b; font-weight:700;">Ja</span>`
-            : `<span style="color:#2e7d32; font-weight:600;">Nein</span>`;
+            : (inbreeding.warningReasons?.length
+                ? `<span title="${escapeHtml(inbreeding.warningReasons.join(" · "))}" style="color:#8a4b00; font-weight:700;">Prüfen</span>`
+                : `<span style="color:#2e7d32; font-weight:600;">Nein</span>`);
 
         return `
             <tr${rowStyle}>
