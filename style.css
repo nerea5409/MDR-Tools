@@ -918,6 +918,7 @@ select:focus {
   font-family: 'Poppins', sans-serif;
   font-size: 14px;
   color: var(--text);
+  flex: 0 0 auto;
 }
 
 .db-search-input:focus {
@@ -932,6 +933,7 @@ select:focus {
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
+  gap: 8px;
   align-items: center;
   flex: 0 0 auto;
   z-index: 1;
