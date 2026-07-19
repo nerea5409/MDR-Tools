@@ -2514,6 +2514,7 @@ function renderDatabase() {
 
     const filterGeschlecht = genderFilterEl?.value || "__all__";
     const filterRasse = raceFilterEl?.value || "__all__";
+    const dbSearchTerm = normalizeHorseName(document.getElementById("dbSearch")?.value || "");
 
     if (ownerFilter) {
         const currentOwner = ownerFilter.value || "__all__";
@@ -2543,7 +2544,8 @@ function renderDatabase() {
         const genderPass = filterGeschlecht === "__all__" || (horse.geschlecht || "Unbekannt") === filterGeschlecht;
         const racePass = filterRasse === "__all__" || normalizeRasse(horse.rasse) === filterRasse;
         const ownerPass = filterBesitzer === "__all__" || normalizeOwner(horse.besitzer) === filterBesitzer;
-        return genderPass && racePass && ownerPass;
+        const searchPass = !dbSearchTerm || normalizeHorseName(horse.name).includes(dbSearchTerm);
+        return genderPass && racePass && ownerPass && searchPass;
     });
 
     const mode = document.getElementById("dbSort")?.value || "name";
@@ -2654,11 +2656,13 @@ function resetDatabaseFilters() {
     const genderFilter = document.getElementById("dbFilterGeschlecht");
     const raceFilter = document.getElementById("dbFilterRasse");
     const ownerFilter = document.getElementById("dbFilterBesitzer");
+    const searchInput = document.getElementById("dbSearch");
     const sort = document.getElementById("dbSort");
 
     if (genderFilter) genderFilter.value = "__all__";
     if (raceFilter) raceFilter.value = "Quarter Horse";
     if (ownerFilter) ownerFilter.value = "__all__";
+    if (searchInput) searchInput.value = "";
     if (sort) sort.value = "name";
 
     renderDatabase();
@@ -3161,17 +3165,17 @@ function showMareCombinations(mare) {
                     GP ±20
                 </label>
 
-                <span class="compare-toolbar-spacer" aria-hidden="true"></span>
-
-                <input
-                    id="stallionSearch"
-                    class="stallion-search-input"
-                    type="text"
-                    placeholder="Hengst suchen..."
-                    value="${escapeHtml(stallionSearchRaw)}"
-                    onkeydown="handleStallionSearchEnter(event, ${pferde.indexOf(mare)})"
-                >
-                <button class="btn btn-mini" onclick="runStallionSearch(${pferde.indexOf(mare)})">Suchen</button>
+                <div class="compare-search-group">
+                    <input
+                        id="stallionSearch"
+                        class="stallion-search-input"
+                        type="text"
+                        placeholder="Hengst suchen..."
+                        value="${escapeHtml(stallionSearchRaw)}"
+                        onkeydown="handleStallionSearchEnter(event, ${pferde.indexOf(mare)})"
+                    >
+                    <button class="btn btn-mini" onclick="runStallionSearch(${pferde.indexOf(mare)})">Suchen</button>
+                </div>
             </div>
 
             <p><b>Hengst-Kombinationen</b></p>
