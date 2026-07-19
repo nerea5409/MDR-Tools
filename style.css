@@ -1460,15 +1460,17 @@ select:focus {
 .compare-check {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   white-space: nowrap;
-  font-size: 12.5px;
+  font-size: 13px;
   color: #3f4f45;
+  font-family: 'Poppins', sans-serif;
 }
 
 .compare-check input {
   width: 15px;
   height: 15px;
+  margin: 0;
   accent-color: var(--primary);
 }
 
@@ -1590,21 +1592,6 @@ select:focus {
   margin-top: 0;
   padding: 6px 10px;
   font-size: 12px;
-}
-
-.mark-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #3e4e45;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.mark-toggle input {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--primary);
 }
 
 /* =========================

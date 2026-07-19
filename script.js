@@ -1411,24 +1411,20 @@ function simulateBreeding() {
 
     const range = calculateExteriorRange(mare, stallion);
 
-    const partBlocks = (range.parts || []).map(part => {
+    const partRows = (range.parts || []).map(part => {
         const bestGenes = part.best.genes.join(" ");
         const worstGenes = part.worst.genes.join(" ");
         const bestStyle = getExteriorScoreStyle(part.best.score);
         const worstStyle = getExteriorScoreStyle(part.worst.score);
 
         return `
-            <div style="margin-top: 12px; padding: 10px; border: 1px solid rgba(31,58,46,0.14); border-radius: 10px; background: #fffdf9;">
-                <h4 style="margin: 0 0 8px 0; color: #244234;">${part.key}</h4>
-                <div style="font-size: 0.9em; margin-bottom: 6px; color: #36443d; border: 1px solid ${bestStyle.border}; border-radius: 7px; padding: 4px 6px; background: rgba(255,255,255,0.45);">
-                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${bestStyle.dot}; margin-right:6px; vertical-align:middle;"></span>
-                    <b>Best:</b> ${bestGenes} (${part.best.match.totalCorrect}/8)
-                </div>
-                <div style="font-size: 0.9em; color: #36443d; border: 1px solid ${worstStyle.border}; border-radius: 7px; padding: 4px 6px; background: rgba(255,255,255,0.45);">
-                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${worstStyle.dot}; margin-right:6px; vertical-align:middle;"></span>
-                    <b>Worst:</b> ${worstGenes} (${part.worst.match.totalCorrect}/8)
-                </div>
-            </div>
+            <tr>
+                <td><b>${escapeHtml(part.key)}</b></td>
+                <td>${escapeHtml(bestGenes)}</td>
+                <td><span class="score-chip" style="border-color:${bestStyle.border}; color:${bestStyle.dot};">(${part.best.match.totalCorrect}/8)</span></td>
+                <td>${escapeHtml(worstGenes)}</td>
+                <td><span class="score-chip" style="border-color:${worstStyle.border}; color:${worstStyle.dot};">(${part.worst.match.totalCorrect}/8)</span></td>
+            </tr>
         `;
     }).join("");
 
@@ -1441,7 +1437,24 @@ function simulateBreeding() {
         ` : ""}
         <p><b>Best Case:</b> ${range.best} · Treffer ${range.bestCorrectTotal}/${range.totalSlots} (${range.bestCorrectPercent}%)</p>
         <p><b>Worst Case:</b> ${range.worst} · Treffer ${range.worstCorrectTotal}/${range.totalSlots} (${range.worstCorrectPercent}%)</p>
-        ${partBlocks}
+        ${partRows ? `
+            <div class="foal-exterior-table-wrap">
+                <table class="foal-exterior-table">
+                    <thead>
+                        <tr>
+                            <th>Körperteil</th>
+                            <th>Best Gene</th>
+                            <th>Best</th>
+                            <th>Worst Gene</th>
+                            <th>Worst</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${partRows}
+                    </tbody>
+                </table>
+            </div>
+        ` : `<div class="foal-empty">Keine passenden Exterieur-Gene für diese Kombination gefunden.</div>`}
     `;
 }
 
@@ -2584,7 +2597,7 @@ function renderDatabase() {
                 </div>
 
                 <div class="horse-line">
-                    ${(p.geschlecht || "Unbekannt")} · ${normalizeRasse(p.rasse)} · GP ${p.gp} · Int Ø ${intAvg} · Ext Ø ${extAvg}
+                    ${(p.geschlecht || "Unbekannt")} · GP ${p.gp} · Int Ø ${intAvg} · Ext Ø ${extAvg}
                 </div>
 
             </div>
@@ -2734,11 +2747,11 @@ function showFoalGeneOverview(mare, stallion, options = {}) {
                 <td><b>${escapeHtml(part.key)}</b></td>
                 <td>${escapeHtml(bestGenes)}</td>
                 <td>
-                    <span class="score-chip" style="border-color:${bestStyle.border}; color:${bestStyle.dot};">${part.best.score} (${part.best.match.totalCorrect}/8)</span>
+                    <span class="score-chip" style="border-color:${bestStyle.border}; color:${bestStyle.dot};">(${part.best.match.totalCorrect}/8)</span>
                 </td>
                 <td>${escapeHtml(worstGenes)}</td>
                 <td>
-                    <span class="score-chip" style="border-color:${worstStyle.border}; color:${worstStyle.dot};">${part.worst.score} (${part.worst.match.totalCorrect}/8)</span>
+                    <span class="score-chip" style="border-color:${worstStyle.border}; color:${worstStyle.dot};">(${part.worst.match.totalCorrect}/8)</span>
                 </td>
             </tr>
         `;
@@ -2959,6 +2972,26 @@ function setMareInbreedingRiskFilter(mareIndex, checked) {
     showMareCombinationsByRefresh(mareIndex);
 }
 
+function handleStallionRowClick(event, mareIndex, stallionIndex) {
+    if (!event?.shiftKey) return;
+
+    const interactive = event.target?.closest("button, input, select, textarea, label, a");
+    if (interactive) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    toggleMareStallionBookmark(mareIndex, stallionIndex);
+}
+
+function handleStallionRowDoubleClick(event, mareIndex, stallionIndex) {
+    const interactive = event.target?.closest("button, input, select, textarea, label, a");
+    if (interactive) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    toggleMareStallionBookmark(mareIndex, stallionIndex);
+}
+
 function setMareBookmarkFilter(mareIndex, checked) {
     mareCombinationViewState.bookmarkOnly = Boolean(checked);
     showMareCombinationsByRefresh(mareIndex);
@@ -3030,7 +3063,7 @@ function showMareCombinations(mare) {
 
         const risk = getRisk(horse);
 
-        if (inbreedingRiskOnly && !risk.isRisk) return false;
+        if (inbreedingRiskOnly && (risk.isRisk || (risk.warningReasons?.length || 0) > 0)) return false;
 
         return true;
     });
@@ -3078,7 +3111,7 @@ function showMareCombinations(mare) {
                 : `<span style="color:#2e7d32; font-weight:600;">Nein</span>`);
 
         return `
-            <tr class="${rowClass}">
+            <tr class="${rowClass}" onclick="handleStallionRowClick(event, ${pferde.indexOf(mare)}, ${pferde.indexOf(stallion)})" ondblclick="handleStallionRowDoubleClick(event, ${pferde.indexOf(mare)}, ${pferde.indexOf(stallion)})" title="Markieren: Shift+Klick oder Doppelklick">
                 <td>${index + 1}</td>
                 <td><b>${escapeHtml(stallion.name)}</b></td>
                 <td>${stallion.gp}</td>
@@ -3086,12 +3119,6 @@ function showMareCombinations(mare) {
                 <td><span class="score-chip score-chip-warn">${range.worst}</span></td>
                 <td>${spread}</td>
                 <td>${inbreedingCell}</td>
-                <td>
-                    <label class="mark-toggle" title="Hengst markieren">
-                        <input type="checkbox" ${bookmarked ? "checked" : ""} onchange="toggleMareStallionBookmark(${pferde.indexOf(mare)}, ${pferde.indexOf(stallion)})">
-                        <span>Markieren</span>
-                    </label>
-                </td>
                 <td>
                     <button class="btn btn-mini" onclick="showStallionDetailFromMare(${pferde.indexOf(mare)}, ${pferde.indexOf(stallion)})">Details</button>
                 </td>
@@ -3121,7 +3148,7 @@ function showMareCombinations(mare) {
             <div class="compare-toolbar">
                 <label class="compare-check">
                     <input type="checkbox" ${inbreedingRiskOnly ? "checked" : ""} onchange="setMareInbreedingRiskFilter(${pferde.indexOf(mare)}, this.checked)">
-                    Nur mit Inzucht-Hinweis
+                    Nur ohne Inzucht-Hinweis
                 </label>
 
                 <label class="compare-check">
@@ -3149,7 +3176,7 @@ function showMareCombinations(mare) {
 
             <p><b>Hengst-Kombinationen</b></p>
 
-            <p class="compare-summary">${stallions.length} Treffer · nur Hengste mit ausgeschlüsseltem Exterieur · ${inbreedingCount} mit Inzucht-Hinweis · ${bookmarkedCount} gemerkt</p>
+            <p class="compare-summary">${stallions.length} Treffer · nur Hengste mit ausgeschlüsseltem Exterieur · ${inbreedingCount} mit Inzucht-Hinweis · ${bookmarkedCount} gemerkt </p>
 
             <div class="compare-table-wrap">
                 <table class="compare-table">
@@ -3162,12 +3189,11 @@ function showMareCombinations(mare) {
                             <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'worst')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Worst", "worst")}</button></th>
                             <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'spread')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Spanne", "spread")}</button></th>
                             <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'inbreeding')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Inzucht", "inbreeding")}</button></th>
-                            <th>Markiert</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${stallionRows || `<tr><td colspan="9" class="compare-empty">Keine Hengste für diese Filter gefunden.</td></tr>`}
+                        ${stallionRows || `<tr><td colspan="8" class="compare-empty">Keine Hengste für diese Filter gefunden.</td></tr>`}
                     </tbody>
                 </table>
             </div>
