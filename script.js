@@ -85,6 +85,10 @@ function zeigeTool(name) {
     document.querySelectorAll(".tool").forEach(t => t.classList.remove("aktiv"));
     document.getElementById(name).classList.add("aktiv");
 
+    if (name === "datenbank") {
+        renderDatabase();
+    }
+
     if (name === "zucht" || name === "farben") {
         populateBreedingDropdowns();
     }
@@ -136,6 +140,7 @@ window.addEventListener("resize", syncMenuLayerOffsets);
 async function savePferd(pferd) {
 
     const index = pferde.findIndex(p => p.name === pferd.name);
+    const status = index !== -1 ? "updated" : "created";
 
     if (index !== -1) {
         pferde[index] = { ...pferde[index], ...pferd };
@@ -150,6 +155,8 @@ async function savePferd(pferd) {
     } catch {
         // Keep the local copy so the app still works offline or during deployment setup.
     }
+
+    return { status, index: index !== -1 ? index : pferde.length - 1 };
 }
 
 
@@ -160,10 +167,17 @@ async function savePferd(pferd) {
 async function parsePferd() {
 
     const raw = document.getElementById("pferd_raw").value;
+    const breedMode = document.getElementById("importBreedMode")?.value || "auto";
+
+    const detectedBreed = findRasse(raw);
+    const resolvedBreed = breedMode === "auto"
+        ? detectedBreed
+        : (breedMode === "criollo" ? "Criollo" : "Quarter Horse");
 
     const pferd = {
         name: findName(raw),
         geschlecht: findGeschlecht(raw),
+        rasse: resolvedBreed,
         gp: findGP(raw),
         besitzer: findBesitzer(raw),
         abstammung: extractPedigree(raw),
@@ -178,12 +192,17 @@ async function parsePferd() {
         return;
     }
 
-    await savePferd(pferd);
+    const saveResult = await savePferd(pferd);
     renderDatabase();
 
+    const statusText = saveResult?.status === "updated" ? "aktualisiert" : "gespeichert";
+    const statusTone = saveResult?.status === "updated"
+        ? "border:1px solid rgba(255, 143, 0, 0.35); background: rgba(255, 193, 7, 0.12); color:#8a4b00;"
+        : "border:1px solid rgba(56, 142, 60, 0.35); background: rgba(76, 175, 80, 0.12); color:#1b5e20;";
+
     document.getElementById("import_status").innerHTML = `
-        <div class="card" style="margin-top:15px;">
-            <strong>${pferd.name}</strong> gespeichert!
+        <div class="card" style="margin-top:15px; ${statusTone}">
+            <strong>${escapeHtml(pferd.name)}</strong> ${statusText}!${saveResult?.status === "updated" ? " (Eintrag wurde überschrieben)" : ""}
         </div>
     `;
 }
@@ -667,6 +686,22 @@ function findGeschlecht(text) {
 function normalizeOwner(value) {
     const owner = (value || "").trim();
     return owner || "Unbekannt";
+}
+
+function normalizeRasse(value) {
+    const normalized = String(value || "").toLowerCase().trim();
+    if (!normalized) return "Quarter Horse";
+    if (normalized.includes("criollo")) return "Criollo";
+    if (normalized.includes("quarter")) return "Quarter Horse";
+    if (normalized.includes("american quarter horse")) return "Quarter Horse";
+    return "Quarter Horse";
+}
+
+function findRasse(text) {
+    const source = String(text || "");
+    if (/criollo/i.test(source)) return "Criollo";
+    if (/american\s+quarter\s+horse|quarter\s+horse/i.test(source)) return "Quarter Horse";
+    return "Quarter Horse";
 }
 
 function escapeHtml(value) {
@@ -1240,8 +1275,8 @@ function countGeneDistribution(genes) {
 
 function getExteriorScoreStyle(score) {
     const styles = {
-        1: { border: "rgba(33, 150, 243, 0.45)", dot: "#2196f3" },
-        2: { border: "rgba(76, 175, 80, 0.45)", dot: "#4caf50" },
+        1: { border: "rgba(27, 94, 32, 0.45)", dot: "#1b5e20" },
+        2: { border: "rgba(56, 142, 60, 0.45)", dot: "#388e3c" },
         3: { border: "rgba(207, 201, 21, 0.48)", dot: "#f2e14c" },
         4: { border: "rgba(255, 81, 0, 0.45)", dot: "#ff7300" },
         5: { border: "rgba(183, 28, 28, 0.45)", dot: "#b71c1c" }
@@ -2442,14 +2477,42 @@ function renderDatabase() {
 
     document.querySelector("#datenbank .hero").style.display = "block";
     document.getElementById("db_sortbar").style.display = "block";
+    const raceSwitch = document.getElementById("db_race_switch");
+    if (raceSwitch) raceSwitch.style.display = "flex";
 
     const db = document.getElementById("db_liste");
     db.innerHTML = "";
 
+    const genderFilterEl = document.getElementById("dbFilterGeschlecht");
+    const raceFilterEl = document.getElementById("dbFilterRasse");
     const ownerFilter = document.getElementById("dbFilterBesitzer");
+
+    if (raceFilterEl) {
+        const currentRace = raceFilterEl.value || "__all__";
+        raceFilterEl.innerHTML = `
+            <option value="Quarter Horse">Quarter Horse</option>
+            <option value="Criollo">Criollo</option>
+            <option value="__all__">Alle Rassen</option>
+        `;
+
+        const validRaces = new Set(["Quarter Horse", "Criollo", "__all__"]);
+        raceFilterEl.value = validRaces.has(currentRace) ? currentRace : "Quarter Horse";
+    }
+
+    const filterGeschlecht = genderFilterEl?.value || "__all__";
+    const filterRasse = raceFilterEl?.value || "__all__";
+
     if (ownerFilter) {
         const currentOwner = ownerFilter.value || "__all__";
-        const owners = [...new Set(pferde.map((horse) => normalizeOwner(horse.besitzer)))]
+        const owners = [...new Set(
+            pferde
+                .filter((horse) => {
+                    const genderPass = filterGeschlecht === "__all__" || (horse.geschlecht || "Unbekannt") === filterGeschlecht;
+                    const racePass = filterRasse === "__all__" || normalizeRasse(horse.rasse) === filterRasse;
+                    return genderPass && racePass;
+                })
+                .map((horse) => normalizeOwner(horse.besitzer))
+        )]
             .sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
 
         ownerFilter.innerHTML = `
@@ -2461,13 +2524,13 @@ function renderDatabase() {
         ownerFilter.value = hasCurrent ? currentOwner : "__all__";
     }
 
-    const filterGeschlecht = document.getElementById("dbFilterGeschlecht")?.value || "__all__";
     const filterBesitzer = ownerFilter?.value || "__all__";
 
     let sorted = pferde.filter((horse) => {
         const genderPass = filterGeschlecht === "__all__" || (horse.geschlecht || "Unbekannt") === filterGeschlecht;
+        const racePass = filterRasse === "__all__" || normalizeRasse(horse.rasse) === filterRasse;
         const ownerPass = filterBesitzer === "__all__" || normalizeOwner(horse.besitzer) === filterBesitzer;
-        return genderPass && ownerPass;
+        return genderPass && racePass && ownerPass;
     });
 
     const mode = document.getElementById("dbSort")?.value || "name";
@@ -2521,7 +2584,7 @@ function renderDatabase() {
                 </div>
 
                 <div class="horse-line">
-                    ${(p.geschlecht || "Unbekannt")} · GP ${p.gp} · Int Ø ${intAvg} · Ext Ø ${extAvg}
+                    ${(p.geschlecht || "Unbekannt")} · ${normalizeRasse(p.rasse)} · GP ${p.gp} · Int Ø ${intAvg} · Ext Ø ${extAvg}
                 </div>
 
             </div>
@@ -2551,14 +2614,37 @@ function renderDatabase() {
 
         db.appendChild(row);
     });
+
+    syncDatabaseRaceTabs();
+}
+
+function setDatabaseRaceTab(raceValue) {
+    const raceFilter = document.getElementById("dbFilterRasse");
+    if (!raceFilter) return;
+
+    raceFilter.value = raceValue || "Quarter Horse";
+    renderDatabase();
+}
+
+function syncDatabaseRaceTabs() {
+    const raceFilter = document.getElementById("dbFilterRasse");
+    const currentRace = raceFilter?.value || "Quarter Horse";
+    const tabs = document.querySelectorAll("#db_race_switch button[data-race]");
+
+    tabs.forEach((tab) => {
+        const race = tab.dataset.race || "";
+        tab.classList.toggle("active", race === currentRace);
+    });
 }
 
 function resetDatabaseFilters() {
     const genderFilter = document.getElementById("dbFilterGeschlecht");
+    const raceFilter = document.getElementById("dbFilterRasse");
     const ownerFilter = document.getElementById("dbFilterBesitzer");
     const sort = document.getElementById("dbSort");
 
     if (genderFilter) genderFilter.value = "__all__";
+    if (raceFilter) raceFilter.value = "Quarter Horse";
     if (ownerFilter) ownerFilter.value = "__all__";
     if (sort) sort.value = "name";
 
@@ -2622,6 +2708,8 @@ function showFoalGeneOverview(mare, stallion, options = {}) {
 
     document.getElementById("db_sortbar").style.display = "none";
     document.querySelector("#datenbank .hero").style.display = "none";
+    const raceSwitch = document.getElementById("db_race_switch");
+    if (raceSwitch) raceSwitch.style.display = "none";
 
     if (!mare || !stallion) return;
 
@@ -2634,7 +2722,7 @@ function showFoalGeneOverview(mare, stallion, options = {}) {
     const range = calculateExteriorRange(mare, stallion);
     const inbreeding = getInbreedingRisk(mare, stallion);
 
-    const partBlocks = (range.parts || []).map((part) => {
+    const partRows = (range.parts || []).map((part) => {
         const bestStyle = getExteriorScoreStyle(part.best.score);
         const worstStyle = getExteriorScoreStyle(part.worst.score);
 
@@ -2642,16 +2730,17 @@ function showFoalGeneOverview(mare, stallion, options = {}) {
         const worstGenes = part.worst.genes.join(" ");
 
         return `
-            <div class="foal-legacy-part-card">
-                <h4>${escapeHtml(part.key)}</h4>
-                <div class="foal-legacy-gene-tone" style="--tone-border:${bestStyle.border}; --tone-dot:${bestStyle.dot};">
-                    <div class="foal-legacy-gene-line"><span class="foal-tone-dot"></span><b>Best (${part.best.match.totalCorrect}/8)</b> ${escapeHtml(bestGenes)}</div>
-                </div>
-
-                <div class="foal-legacy-gene-tone" style="--tone-border:${worstStyle.border}; --tone-dot:${worstStyle.dot};">
-                    <div class="foal-legacy-gene-line"><span class="foal-tone-dot"></span><b>Worst (${part.worst.match.totalCorrect}/8)</b> ${escapeHtml(worstGenes)}</div>
-                </div>
-            </div>
+            <tr>
+                <td><b>${escapeHtml(part.key)}</b></td>
+                <td>${escapeHtml(bestGenes)}</td>
+                <td>
+                    <span class="score-chip" style="border-color:${bestStyle.border}; color:${bestStyle.dot};">${part.best.score} (${part.best.match.totalCorrect}/8)</span>
+                </td>
+                <td>${escapeHtml(worstGenes)}</td>
+                <td>
+                    <span class="score-chip" style="border-color:${worstStyle.border}; color:${worstStyle.dot};">${part.worst.score} (${part.worst.match.totalCorrect}/8)</span>
+                </td>
+            </tr>
         `;
     }).join("");
 
@@ -2693,7 +2782,24 @@ function showFoalGeneOverview(mare, stallion, options = {}) {
             <p class="foal-legacy-line"><b>Best Case:</b> ${range.best} · Treffer ${range.bestCorrectTotal}/${range.totalSlots} (${range.bestCorrectPercent}%)</p>
             <p class="foal-legacy-line"><b>Worst Case:</b> ${range.worst} · Treffer ${range.worstCorrectTotal}/${range.totalSlots} (${range.worstCorrectPercent}%)</p>
 
-            ${partBlocks ? `<div class="foal-legacy-parts">${partBlocks}</div>` : `<div class="foal-empty">Keine passenden Exterieur-Gene für diese Kombination gefunden.</div>`}
+            ${partRows ? `
+                <div class="foal-exterior-table-wrap">
+                    <table class="foal-exterior-table">
+                        <thead>
+                            <tr>
+                                <th>Körperteil</th>
+                                <th>Best Gene</th>
+                                <th>Best</th>
+                                <th>Worst Gene</th>
+                                <th>Worst</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${partRows}
+                        </tbody>
+                    </table>
+                </div>
+            ` : `<div class="foal-empty">Keine passenden Exterieur-Gene für diese Kombination gefunden.</div>`}
         </div>
 
         <div id="foal-view-farben" style="display:none;">
@@ -2729,6 +2835,8 @@ function showStallionView(horse, options = {}) {
 
     document.getElementById("db_sortbar").style.display = "none";
     document.querySelector("#datenbank .hero").style.display = "none";
+    const raceSwitch = document.getElementById("db_race_switch");
+    if (raceSwitch) raceSwitch.style.display = "none";
 
     if (!horse) return;
 
@@ -2764,8 +2872,71 @@ function showStallionView(horse, options = {}) {
 const mareCombinationViewState = {
     sortBy: "best",
     sortDir: "asc",
-    inbreedingFilter: "all"
+    inbreedingRiskOnly: false,
+    bookmarkOnly: false,
+    gpWindow20Only: false
 };
+
+const MARE_STALLION_BOOKMARKS_KEY = "mare_stallion_bookmarks";
+
+function readMareStallionBookmarks() {
+    try {
+        const raw = localStorage.getItem(MARE_STALLION_BOOKMARKS_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function writeMareStallionBookmarks(value) {
+    try {
+        localStorage.setItem(MARE_STALLION_BOOKMARKS_KEY, JSON.stringify(value || {}));
+    } catch {
+        // Bookmarking should never break core workflows.
+    }
+}
+
+function getMareBookmarkKey(mare) {
+    return normalizeHorseName(mare?.name || "");
+}
+
+function getStallionBookmarkKey(stallion) {
+    return normalizeHorseName(stallion?.name || "");
+}
+
+function isMareStallionBookmarked(mare, stallion) {
+    const mareKey = getMareBookmarkKey(mare);
+    const stallionKey = getStallionBookmarkKey(stallion);
+    if (!mareKey || !stallionKey) return false;
+
+    const store = readMareStallionBookmarks();
+    const entries = Array.isArray(store[mareKey]) ? store[mareKey] : [];
+    return entries.includes(stallionKey);
+}
+
+function toggleMareStallionBookmark(mareIndex, stallionIndex) {
+    const mare = pferde[mareIndex];
+    const stallion = pferde[stallionIndex];
+    if (!mare || !stallion) return;
+
+    const mareKey = getMareBookmarkKey(mare);
+    const stallionKey = getStallionBookmarkKey(stallion);
+    if (!mareKey || !stallionKey) return;
+
+    const store = readMareStallionBookmarks();
+    const entries = new Set(Array.isArray(store[mareKey]) ? store[mareKey] : []);
+
+    if (entries.has(stallionKey)) {
+        entries.delete(stallionKey);
+    } else {
+        entries.add(stallionKey);
+    }
+
+    store[mareKey] = Array.from(entries);
+    writeMareStallionBookmarks(store);
+    showMareCombinationsByRefresh(mareIndex);
+}
 
 function defaultSortDirection(column) {
     if (column === "gp") return "desc";
@@ -2783,8 +2954,18 @@ function setMareCombinationSort(mareIndex, column) {
     showMareCombinationsByRefresh(mareIndex);
 }
 
-function setMareInbreedingFilter(mareIndex, value) {
-    mareCombinationViewState.inbreedingFilter = value || "all";
+function setMareInbreedingRiskFilter(mareIndex, checked) {
+    mareCombinationViewState.inbreedingRiskOnly = Boolean(checked);
+    showMareCombinationsByRefresh(mareIndex);
+}
+
+function setMareBookmarkFilter(mareIndex, checked) {
+    mareCombinationViewState.bookmarkOnly = Boolean(checked);
+    showMareCombinationsByRefresh(mareIndex);
+}
+
+function setMareGpWindowFilter(mareIndex, checked) {
+    mareCombinationViewState.gpWindow20Only = Boolean(checked);
     showMareCombinationsByRefresh(mareIndex);
 }
 
@@ -2803,16 +2984,21 @@ function showMareCombinations(mare) {
 
     document.getElementById("db_sortbar").style.display = "none";
     document.querySelector("#datenbank .hero").style.display = "none";
+    const raceSwitch = document.getElementById("db_race_switch");
+    if (raceSwitch) raceSwitch.style.display = "none";
 
     const container = document.getElementById("db_liste");
 
     let stallions = pferde.filter(p => p.geschlecht === "Hengst");
 
     const stallionSearchRaw = (document.getElementById("stallionSearch")?.value || "").trim().toLowerCase();
-    const inbreedingFilter = mareCombinationViewState.inbreedingFilter || "all";
+    const inbreedingRiskOnly = Boolean(mareCombinationViewState.inbreedingRiskOnly);
+    const bookmarkOnly = Boolean(mareCombinationViewState.bookmarkOnly);
+    const gpWindow20Only = Boolean(mareCombinationViewState.gpWindow20Only);
     const sortBy = mareCombinationViewState.sortBy || "best";
     const sortDir = mareCombinationViewState.sortDir || defaultSortDirection(sortBy);
     const sortFactor = sortDir === "asc" ? 1 : -1;
+    const mareGp = Number(mare?.gp || 0);
 
     const rangeCache = new Map();
     const getRange = (stallion) => {
@@ -2835,23 +3021,19 @@ function showMareCombinations(mare) {
     stallions = stallions.filter((horse) => {
         const genesPass = hasCompleteExteriorGenesForPair(mare, horse);
         const searchPass = !stallionSearchRaw || (horse.name || "").toLowerCase().includes(stallionSearchRaw);
+        const bookmarkPass = !bookmarkOnly || isMareStallionBookmarked(mare, horse);
+        const gpPass = !gpWindow20Only || Math.abs(Number(horse.gp || 0) - mareGp) <= 20;
 
-        if (!genesPass || !searchPass) {
+        if (!genesPass || !searchPass || !bookmarkPass || !gpPass) {
             return false;
         }
 
         const risk = getRisk(horse);
 
-        if (inbreedingFilter === "risk") return risk.isRisk;
-        if (inbreedingFilter === "safe") return !risk.isRisk;
+        if (inbreedingRiskOnly && !risk.isRisk) return false;
 
         return true;
     });
-
-    if (!stallions.length && inbreedingFilter !== "all") {
-        mareCombinationViewState.inbreedingFilter = "all";
-        return showMareCombinations(mare);
-    }
 
     stallions.sort((a, b) => {
 
@@ -2877,16 +3059,17 @@ function showMareCombinations(mare) {
     });
 
     const inbreedingCount = stallions.filter((stallion) => getRisk(stallion).isRisk).length;
+    const bookmarkedCount = stallions.filter((stallion) => isMareStallionBookmarked(mare, stallion)).length;
 
     const stallionRows = stallions.map((stallion, index) => {
         const range = getRange(stallion);
         const spread = (Number(range.worst) - Number(range.best)).toFixed(2);
         const inbreeding = getRisk(stallion);
-        const rowStyle = inbreeding.isRisk
-            ? ` style="background: rgba(244, 67, 54, 0.18);"`
-            : (inbreeding.warningReasons?.length
-                ? ` style="background: rgba(255, 193, 7, 0.16);"`
-                : "");
+        const bookmarked = isMareStallionBookmarked(mare, stallion);
+        const rowClass = [
+            inbreeding.isRisk ? "compare-row-risk" : (inbreeding.warningReasons?.length ? "compare-row-warn" : ""),
+            bookmarked ? "compare-row-marked" : ""
+        ].filter(Boolean).join(" ");
         const inbreedingReason = inbreeding.reasons.join(" · ");
         const inbreedingCell = inbreeding.isRisk
             ? `<span title="${escapeHtml(inbreedingReason)}" style="color:#8e1b1b; font-weight:700;">Ja</span>`
@@ -2895,7 +3078,7 @@ function showMareCombinations(mare) {
                 : `<span style="color:#2e7d32; font-weight:600;">Nein</span>`);
 
         return `
-            <tr${rowStyle}>
+            <tr class="${rowClass}">
                 <td>${index + 1}</td>
                 <td><b>${escapeHtml(stallion.name)}</b></td>
                 <td>${stallion.gp}</td>
@@ -2903,6 +3086,12 @@ function showMareCombinations(mare) {
                 <td><span class="score-chip score-chip-warn">${range.worst}</span></td>
                 <td>${spread}</td>
                 <td>${inbreedingCell}</td>
+                <td>
+                    <label class="mark-toggle" title="Hengst markieren">
+                        <input type="checkbox" ${bookmarked ? "checked" : ""} onchange="toggleMareStallionBookmark(${pferde.indexOf(mare)}, ${pferde.indexOf(stallion)})">
+                        <span>Markieren</span>
+                    </label>
+                </td>
                 <td>
                     <button class="btn btn-mini" onclick="showStallionDetailFromMare(${pferde.indexOf(mare)}, ${pferde.indexOf(stallion)})">Details</button>
                 </td>
@@ -2915,7 +3104,10 @@ function showMareCombinations(mare) {
 
 <button class="btn back-btn" onclick="renderDatabase()">Zurück</button>
 
-            <h2>${mare.name}</h2>
+            <div class="detail-title-block">
+                <h2>${escapeHtml(mare.name)}</h2>
+                <p class="detail-meta">GP ${mare.gp || 0} · Int Ø ${calculateInteriorAverage(mare.interieur || {})} · Ext Ø ${calculateExteriorAverage(mare.exterieur || {})}</p>
+            </div>
 
             <div class="view-switch">
                 <button id="btnZucht" class="active" onclick="showView('zucht')">Zucht</button>
@@ -2927,12 +3119,20 @@ function showMareCombinations(mare) {
         <div id="view-zucht">
 
             <div class="compare-toolbar">
-                <label class="compare-sort-label" for="inbreedingFilter">Inzucht-Filter</label>
-                <select class="compare-sort-select" id="inbreedingFilter" onchange="setMareInbreedingFilter(${pferde.indexOf(mare)}, this.value)">
-                    <option value="all" ${inbreedingFilter === "all" ? "selected" : ""}>Alle</option>
-                    <option value="safe" ${inbreedingFilter === "safe" ? "selected" : ""}>Nur ohne Hinweis</option>
-                    <option value="risk" ${inbreedingFilter === "risk" ? "selected" : ""}>Nur mit Hinweis</option>
-                </select>
+                <label class="compare-check">
+                    <input type="checkbox" ${inbreedingRiskOnly ? "checked" : ""} onchange="setMareInbreedingRiskFilter(${pferde.indexOf(mare)}, this.checked)">
+                    Nur mit Inzucht-Hinweis
+                </label>
+
+                <label class="compare-check">
+                    <input type="checkbox" ${bookmarkOnly ? "checked" : ""} onchange="setMareBookmarkFilter(${pferde.indexOf(mare)}, this.checked)">
+                    Nur gemerkt
+                </label>
+
+                <label class="compare-check">
+                    <input type="checkbox" ${gpWindow20Only ? "checked" : ""} onchange="setMareGpWindowFilter(${pferde.indexOf(mare)}, this.checked)">
+                    GP ±20
+                </label>
 
                 <span class="compare-toolbar-spacer" aria-hidden="true"></span>
 
@@ -2949,7 +3149,7 @@ function showMareCombinations(mare) {
 
             <p><b>Hengst-Kombinationen</b></p>
 
-            <p class="compare-summary">${stallions.length} Treffer · nur Hengste mit ausgeschlüsseltem Exterieur · ${inbreedingCount} mit Inzucht-Hinweis</p>
+            <p class="compare-summary">${stallions.length} Treffer · nur Hengste mit ausgeschlüsseltem Exterieur · ${inbreedingCount} mit Inzucht-Hinweis · ${bookmarkedCount} gemerkt</p>
 
             <div class="compare-table-wrap">
                 <table class="compare-table">
@@ -2962,11 +3162,12 @@ function showMareCombinations(mare) {
                             <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'worst')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Worst", "worst")}</button></th>
                             <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'spread')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Spanne", "spread")}</button></th>
                             <th><button type="button" onclick="setMareCombinationSort(${pferde.indexOf(mare)}, 'inbreeding')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderSortLabel("Inzucht", "inbreeding")}</button></th>
+                            <th>Markiert</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${stallionRows || `<tr><td colspan="8" class="compare-empty">Keine Hengste für diese Filter gefunden.</td></tr>`}
+                        ${stallionRows || `<tr><td colspan="9" class="compare-empty">Keine Hengste für diese Filter gefunden.</td></tr>`}
                     </tbody>
                 </table>
             </div>

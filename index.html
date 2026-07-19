@@ -88,6 +88,13 @@
 
   <div class="container">
     <div class="card form-card">
+      <label for="importBreedMode"><b>Rasse beim Import</b></label>
+      <select id="importBreedMode" style="margin-bottom:10px;">
+        <option value="auto">Automatisch erkennen</option>
+        <option value="quarter">Quarter Horse</option>
+        <option value="criollo">Criollo</option>
+      </select>
+
       <textarea id="pferd_raw" placeholder="MDR Pferdeblock hier einfügen..."></textarea>
 
       <div class="action-row">
@@ -108,6 +115,11 @@
     <p>Stuten & Hengste anklicken für Detailansicht (Zucht & Turnier)</p>
   </div>
 
+  <div id="db_race_switch" class="view-switch db-race-view-switch" role="tablist" aria-label="Rasse umschalten" style="margin: 0 36px 10px;">
+    <button type="button" class="active" data-race="Quarter Horse" onclick="setDatabaseRaceTab('Quarter Horse')">Quarter</button>
+    <button type="button" data-race="Criollo" onclick="setDatabaseRaceTab('Criollo')">Criollos</button>
+  </div>
+
   <div id="db_sortbar" class="database-tools" style="margin-bottom:15px;">
     <label class="db-inline-label" for="dbSort"><b>Sortieren</b></label>
     <select id="dbSort" onchange="renderDatabase()">
@@ -126,6 +138,12 @@
       <option value="Hengst">Hengst</option>
       <option value="Wallach">Wallach</option>
       <option value="Unbekannt">Unbekannt</option>
+    </select>
+
+    <select id="dbFilterRasse" class="db-race-select-hidden" onchange="renderDatabase()" aria-hidden="true" tabindex="-1">
+      <option value="Quarter Horse">Quarter Horse</option>
+      <option value="Criollo">Criollo</option>
+      <option value="__all__">Alle Rassen</option>
     </select>
 
     <label class="db-inline-label" for="dbFilterBesitzer"><b>Besitzer</b></label>
