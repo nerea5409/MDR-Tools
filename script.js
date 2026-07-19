@@ -3165,7 +3165,7 @@ function showMareCombinations(mare) {
                     GP ±20
                 </label>
 
-                <div class="compare-search-group">
+                <div class="compare-search-group stallion-search-group">
                     <input
                         id="stallionSearch"
                         class="stallion-search-input"
@@ -3174,7 +3174,6 @@ function showMareCombinations(mare) {
                         value="${escapeHtml(stallionSearchRaw)}"
                         onkeydown="handleStallionSearchEnter(event, ${pferde.indexOf(mare)})"
                     >
-                    <button class="btn btn-mini" onclick="runStallionSearch(${pferde.indexOf(mare)})">Suchen</button>
                 </div>
             </div>
 

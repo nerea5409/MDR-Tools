@@ -910,7 +910,7 @@ select:focus {
 .db-search-input {
   width: 230px;
   min-width: 190px;
-  height: 34px;
+  height: 38px;
   padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid var(--line);
@@ -1503,6 +1503,16 @@ select:focus {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.db-search-group {
+  min-width: 230px;
+}
+
+.stallion-search-group {
+  min-width: 260px;
 }
 
 .stallion-search-input {
