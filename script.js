@@ -2681,8 +2681,16 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
     const owners = [...new Set(horses.map((horse) => normalizeOwner(horse.besitzer)).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
 
-    const selectedOwner = document.getElementById("turnierOwnerSelect")?.value || "__all__";
-    const ownerToShow = owners.includes(selectedOwner) ? selectedOwner : (owners[0] || "__all__");
+    const preferredOwner = "WinterFox";
+    const normalizedOwners = owners.map((owner) => normalizeOwner(owner));
+    const currentOwnerValue = document.getElementById("turnierOwnerSelect")?.value;
+    const fallbackOwner = owners[0] || "__all__";
+    const selectedOwner = currentOwnerValue && normalizedOwners.includes(normalizeOwner(currentOwnerValue))
+        ? currentOwnerValue
+        : (normalizedOwners.includes(normalizeOwner(preferredOwner)) ? preferredOwner : fallbackOwner);
+    const ownerToShow = owners.includes(selectedOwner)
+        ? selectedOwner
+        : (owners.includes(preferredOwner) ? preferredOwner : fallbackOwner);
 
     const visibleHorses = horses.filter((horse) => {
         const ownerName = normalizeOwner(horse.besitzer);
@@ -2699,15 +2707,17 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
     const globalMin = allValues.length ? Math.min(...allValues) : null;
     const globalMax = allValues.length ? Math.max(...allValues) : null;
 
-    const rows = visibleHorses
+    const sortedHorses = visibleHorses
+        .slice()
         .sort((a, b) => {
             const ageA = getHorseAgeYears(a);
             const ageB = getHorseAgeYears(b);
             const ageDiff = (ageB ?? 0) - (ageA ?? 0);
             if (ageDiff !== 0) return ageDiff;
             return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
-        })
-        .map((horse) => {
+        });
+
+    const rows = sortedHorses.map((horse) => {
             const valueCells = westernDisciplines.map((discipline) => {
                 const value = calculateTournamentValue(horse, discipline);
                 if (!Number.isFinite(value)) {
@@ -2742,6 +2752,29 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
         ...owners.map((owner) => ({ value: owner, label: owner }))
     ];
 
+    const averageRow = (() => {
+        const averageValues = westernDisciplines.map((discipline) => {
+            const values = sortedHorses
+                .map((horse) => calculateTournamentValue(horse, discipline))
+                .filter((value) => Number.isFinite(value));
+            if (!values.length) return null;
+            return values.reduce((sum, value) => sum + value, 0) / values.length;
+        });
+
+        const averageValue = averageValues.filter((value) => Number.isFinite(value));
+        const avgWestern = averageValue.length
+            ? Math.round(averageValue.reduce((sum, value) => sum + value, 0) / averageValue.length)
+            : null;
+
+        return `
+            <tr class="turnier-overview-average-row">
+                <td><b>Ø</b></td>
+                <td>${avgWestern !== null ? avgWestern : "—"}</td>
+                ${averageValues.map((value) => `<td>${value !== null ? Math.round(value) : "—"}</td>`).join("")}
+            </tr>
+        `;
+    })();
+
     container.innerHTML = `
         <h3>Western-Turnierübersicht</h3>
         <p>Wähle einen Besitzer aus, um alle Pferde und Fohlen mit ihren Western-Turnierwerten kompakt zu sehen.</p>
@@ -2764,7 +2797,7 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
                             <th>Horsemanship</th>
                         </tr>
                     </thead>
-                    <tbody>${rows}</tbody>
+                    <tbody>${rows}${averageRow}</tbody>
                 </table>
             </div>
         ` : `<div class="db-comparison-empty">Für diesen Besitzer liegen derzeit keine Western-Turnierdaten vor.</div>`}
