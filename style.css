@@ -1014,9 +1014,9 @@ select:focus {
   min-width: 76px !important;
   width: 76px !important;
   max-width: 76px !important;
-  padding: 2px 3px;
+  padding: 3px 4px;
   overflow: hidden;
-  line-height: 0.95;
+  line-height: 1.02;
   font-size: 0.72rem;
 }
 
