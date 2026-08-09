@@ -3213,6 +3213,23 @@ function showFoalDetailTab(view) {
     btnFarben.classList.remove("active");
 }
 
+function showStallionViewByRefresh(horseIndex) {
+    const horse = pferde[horseIndex];
+    if (horse) {
+        showStallionView(horse);
+    }
+}
+
+function runStallionSearchForStallionView(horseIndex) {
+    showStallionViewByRefresh(horseIndex);
+}
+
+function handleStallionSearchEnterForStallionView(event, horseIndex) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    runStallionSearchForStallionView(horseIndex);
+}
+
 function showStallionView(horse, options = {}) {
 
     document.getElementById("db_sortbar").style.display = "none";
@@ -3227,13 +3244,84 @@ function showStallionView(horse, options = {}) {
     const backLabel = options.backLabel || "Zurück";
     const intAvg = calculateInteriorAverage(horse.interieur || {});
     const extAvg = calculateExteriorAverage(horse.exterieur || {});
+    const horseIndex = pferde.indexOf(horse);
 
     const mares = pferde.filter((candidate) => candidate.geschlecht === "Stute" && isBreedingEligibleHorse(candidate));
+    const stallionSearchRaw = (document.getElementById("stallionSearch")?.value || "").trim().toLowerCase();
+    const inbreedingRiskOnly = Boolean(stallionCombinationViewState.inbreedingRiskOnly);
+    const bookmarkOnly = Boolean(stallionCombinationViewState.bookmarkOnly);
+    const gpWindow20Only = Boolean(stallionCombinationViewState.gpWindow20Only);
+    const sortBy = stallionCombinationViewState.sortBy || "best";
+    const sortDir = stallionCombinationViewState.sortDir || defaultSortDirection(sortBy);
+    const sortFactor = sortDir === "asc" ? 1 : -1;
+    const horseGp = Number(horse?.gp || 0);
 
-    const mateRows = mares.map((mare) => {
-        const range = calculateExteriorRange(mare, horse);
-        const inbreeding = getInbreedingRisk(mare, horse);
-        const rowClass = inbreeding.isRisk ? "compare-row-risk" : (inbreeding.warningReasons?.length ? "compare-row-warn" : "");
+    const rangeCache = new Map();
+    const getRange = (mare) => {
+        const key = mare.name;
+        if (!rangeCache.has(key)) {
+            rangeCache.set(key, calculateExteriorRange(mare, horse));
+        }
+        return rangeCache.get(key);
+    };
+
+    const riskCache = new Map();
+    const getRisk = (mare) => {
+        const key = mare.name;
+        if (!riskCache.has(key)) {
+            riskCache.set(key, getInbreedingRisk(mare, horse));
+        }
+        return riskCache.get(key);
+    };
+
+    let filteredMares = mares.filter((mare) => {
+        const genesPass = hasCompleteExteriorGenesForPair(mare, horse);
+        const searchPass = !stallionSearchRaw || (mare.name || "").toLowerCase().includes(stallionSearchRaw);
+        const bookmarkPass = !bookmarkOnly || isMareStallionBookmarked(mare, horse);
+        const gpPass = !gpWindow20Only || Math.abs(Number(mare.gp || 0) - horseGp) <= 20;
+
+        if (!genesPass || !searchPass || !bookmarkPass || !gpPass) {
+            return false;
+        }
+
+        const risk = getRisk(mare);
+        if (inbreedingRiskOnly && (risk.isRisk || (risk.warningReasons?.length || 0) > 0)) return false;
+
+        return true;
+    });
+
+    filteredMares.sort((a, b) => {
+        const aRange = getRange(a);
+        const bRange = getRange(b);
+        const aRisk = getRisk(a).isRisk ? 1 : 0;
+        const bRisk = getRisk(b).isRisk ? 1 : 0;
+        const aSpread = Number(aRange.worst) - Number(aRange.best);
+        const bSpread = Number(bRange.worst) - Number(bRange.best);
+
+        let compare = 0;
+
+        if (sortBy === "name") compare = a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+        if (sortBy === "gp") compare = Number(a.gp || 0) - Number(b.gp || 0);
+        if (sortBy === "best") compare = Number(aRange.best) - Number(bRange.best);
+        if (sortBy === "worst") compare = Number(aRange.worst) - Number(bRange.worst);
+        if (sortBy === "spread") compare = aSpread - bSpread;
+        if (sortBy === "inbreeding") compare = aRisk - bRisk;
+
+        if (compare !== 0) return compare * sortFactor;
+
+        return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+    });
+
+    const inbreedingCount = filteredMares.filter((mare) => getRisk(mare).isRisk).length;
+    const bookmarkedCount = filteredMares.filter((mare) => isMareStallionBookmarked(mare, horse)).length;
+
+    const mateRows = filteredMares.map((mare) => {
+        const range = getRange(mare);
+        const inbreeding = getRisk(mare);
+        const rowClass = [
+            inbreeding.isRisk ? "compare-row-risk" : (inbreeding.warningReasons?.length ? "compare-row-warn" : ""),
+            isMareStallionBookmarked(mare, horse) ? "compare-row-marked" : ""
+        ].filter(Boolean).join(" ");
         const inbreedingCell = inbreeding.isRisk
             ? `<span title="${escapeHtml(inbreeding.reasons.join(" · "))}" style="color:#8e1b1b; font-weight:700;">Ja</span>`
             : (inbreeding.warningReasons?.length
@@ -3241,14 +3329,14 @@ function showStallionView(horse, options = {}) {
                 : `<span style="color:#2e7d32; font-weight:600;">Nein</span>`);
 
         return `
-            <tr class="${rowClass}">
+            <tr class="${rowClass}" onclick="handleStallionRowClick(event, ${pferde.indexOf(mare)}, ${horseIndex})" ondblclick="handleStallionRowDoubleClick(event, ${pferde.indexOf(mare)}, ${horseIndex})" title="Markieren: Shift+Klick oder Doppelklick">
                 <td><b>${escapeHtml(mare.name)}</b></td>
                 <td>${mare.gp || 0}</td>
                 <td><span class="score-chip score-chip-good">${range.best}</span></td>
                 <td><span class="score-chip score-chip-warn">${range.worst}</span></td>
                 <td>${(Number(range.worst) - Number(range.best)).toFixed(2)}</td>
                 <td>${inbreedingCell}</td>
-                <td><button class="btn btn-mini" onclick="showStallionDetailFromMare(${pferde.indexOf(mare)}, ${pferde.indexOf(horse)})">Details</button></td>
+                <td><button class="btn btn-mini" onclick="showStallionDetailFromMare(${pferde.indexOf(mare)}, ${horseIndex})">Details</button></td>
             </tr>
         `;
     }).join("");
@@ -3264,26 +3352,58 @@ function showStallionView(horse, options = {}) {
             </div>
 
             <div class="view-switch">
-                <button id="btnZucht" onclick="showView('zucht')">Zucht</button>
-                <button id="btnTurnier" class="active" onclick="showView('turnier')">Turnier</button>
+                <button id="btnZucht" class="active" onclick="showView('zucht')">Zucht</button>
+                <button id="btnTurnier" onclick="showView('turnier')">Turnier</button>
             </div>
 
         </div>
     `;
 
     const content = `
-        <div id="view-zucht" style="display:none;">
-            <p class="compare-summary">Übersicht aller geeigneten Stuten für ${escapeHtml(horse.name)} · nur Pferde ab 3 Jahren</p>
+        <div id="view-zucht">
+            <p class="compare-summary">Übersicht aller geeigneten Stuten für ${escapeHtml(horse.name)} · nur Stuten ab 3 Jahren</p>
+
+            <div class="compare-toolbar">
+                <label class="compare-check">
+                    <input type="checkbox" ${inbreedingRiskOnly ? "checked" : ""} onchange="setStallionInbreedingRiskFilter(${horseIndex}, this.checked)">
+                    Nur ohne Inzucht-Hinweis
+                </label>
+
+                <label class="compare-check">
+                    <input type="checkbox" ${bookmarkOnly ? "checked" : ""} onchange="setStallionBookmarkFilter(${horseIndex}, this.checked)">
+                    Nur gemerkt
+                </label>
+
+                <label class="compare-check">
+                    <input type="checkbox" ${gpWindow20Only ? "checked" : ""} onchange="setStallionGpWindowFilter(${horseIndex}, this.checked)">
+                    GP ±20
+                </label>
+
+                <div class="compare-search-group stallion-search-group">
+                    <input
+                        id="stallionSearch"
+                        class="stallion-search-input"
+                        type="text"
+                        placeholder="Stute suchen..."
+                        value="${escapeHtml(stallionSearchRaw)}"
+                        onkeydown="handleStallionSearchEnterForStallionView(event, ${horseIndex})"
+                    >
+                </div>
+            </div>
+
+            <p><b>Stuten-Kombinationen</b></p>
+            <p class="compare-summary">${filteredMares.length} Treffer · nur Stuten mit ausgeschlüsseltem Exterieur · ${inbreedingCount} mit Inzucht-Hinweis · ${bookmarkedCount} gemerkt</p>
+
             <div class="compare-table-wrap">
                 <table class="compare-table">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>GP</th>
-                            <th>Best</th>
-                            <th>Worst</th>
-                            <th>Spanne</th>
-                            <th>Inzucht</th>
+                            <th><button type="button" onclick="setStallionCombinationSort(${horseIndex}, 'name')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderStallionSortLabel("Name", "name")}</button></th>
+                            <th><button type="button" onclick="setStallionCombinationSort(${horseIndex}, 'gp')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderStallionSortLabel("GP", "gp")}</button></th>
+                            <th><button type="button" onclick="setStallionCombinationSort(${horseIndex}, 'best')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderStallionSortLabel("Best", "best")}</button></th>
+                            <th><button type="button" onclick="setStallionCombinationSort(${horseIndex}, 'worst')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderStallionSortLabel("Worst", "worst")}</button></th>
+                            <th><button type="button" onclick="setStallionCombinationSort(${horseIndex}, 'spread')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderStallionSortLabel("Spanne", "spread")}</button></th>
+                            <th><button type="button" onclick="setStallionCombinationSort(${horseIndex}, 'inbreeding')" style="background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; font-weight:700; cursor:pointer;">${renderStallionSortLabel("Inzucht", "inbreeding")}</button></th>
                             <th></th>
                         </tr>
                     </thead>
@@ -3293,7 +3413,7 @@ function showStallionView(horse, options = {}) {
                 </table>
             </div>
         </div>
-        <div id="view-turnier">
+        <div id="view-turnier" style="display:none;">
             ${renderTournamentProfile(horse)}
         </div>
     `;
@@ -3303,6 +3423,14 @@ function showStallionView(horse, options = {}) {
 
 
 const mareCombinationViewState = {
+    sortBy: "best",
+    sortDir: "asc",
+    inbreedingRiskOnly: false,
+    bookmarkOnly: false,
+    gpWindow20Only: false
+};
+
+const stallionCombinationViewState = {
     sortBy: "best",
     sortDir: "asc",
     inbreedingRiskOnly: false,
@@ -3431,7 +3559,40 @@ function renderSortLabel(label, column) {
     return `${label} ${dir}`;
 }
 
+function renderStallionSortLabel(label, column) {
+    if (stallionCombinationViewState.sortBy !== column) {
+        return label;
+    }
 
+    const dir = stallionCombinationViewState.sortDir === "asc" ? "▲" : "▼";
+    return `${label} ${dir}`;
+}
+
+function setStallionCombinationSort(horseIndex, column) {
+    if (stallionCombinationViewState.sortBy === column) {
+        stallionCombinationViewState.sortDir = stallionCombinationViewState.sortDir === "asc" ? "desc" : "asc";
+    } else {
+        stallionCombinationViewState.sortBy = column;
+        stallionCombinationViewState.sortDir = defaultSortDirection(column);
+    }
+
+    showStallionViewByRefresh(horseIndex);
+}
+
+function setStallionInbreedingRiskFilter(horseIndex, checked) {
+    stallionCombinationViewState.inbreedingRiskOnly = Boolean(checked);
+    showStallionViewByRefresh(horseIndex);
+}
+
+function setStallionBookmarkFilter(horseIndex, checked) {
+    stallionCombinationViewState.bookmarkOnly = Boolean(checked);
+    showStallionViewByRefresh(horseIndex);
+}
+
+function setStallionGpWindowFilter(horseIndex, checked) {
+    stallionCombinationViewState.gpWindow20Only = Boolean(checked);
+    showStallionViewByRefresh(horseIndex);
+}
 
 function showMareCombinations(mare) {
 
