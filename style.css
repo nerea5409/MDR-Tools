@@ -999,9 +999,9 @@ select:focus {
 
 .turnier-overview-table th:nth-child(n+3),
 .turnier-overview-table td:nth-child(n+3) {
-  width: 92px !important;
-  min-width: 92px !important;
-  max-width: 92px !important;
+  width: 84px !important;
+  min-width: 84px !important;
+  max-width: 84px !important;
 }
 
 .turnier-overview-table .turnier-overview-cell {
@@ -1010,10 +1010,10 @@ select:focus {
   border-radius: 0 !important;
   text-align: center;
   white-space: nowrap;
-  min-width: 92px !important;
-  width: 92px !important;
-  max-width: 92px !important;
-  padding: 7px 6px;
+  min-width: 84px !important;
+  width: 84px !important;
+  max-width: 84px !important;
+  padding: 5px 4px;
   overflow: hidden;
 }
 

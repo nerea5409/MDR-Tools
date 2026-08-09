@@ -2581,26 +2581,30 @@ function getTurnierCellColors(value, globalMin, globalMax) {
     let ratio = (value - globalMin) / (globalMax - globalMin);
     ratio = Math.max(0, Math.min(1, ratio));
 
+    const easedRatio = ratio < 0.5
+        ? Math.pow(ratio / 0.5, 0.7) * 0.5
+        : 0.5 + Math.pow((ratio - 0.5) / 0.5, 0.7) * 0.5;
+
     let start;
     let end;
-    let t;
+    let t = easedRatio;
 
-    if (ratio < 0.5) {
+    if (easedRatio < 0.5) {
         start = [214, 79, 79];
-        end = [255, 255, 255];
-        t = ratio / 0.5;
+        end = [248, 248, 248];
+        t = easedRatio / 0.5;
     } else {
-        start = [255, 255, 255];
-        end = [96, 154, 110];
-        t = (ratio - 0.5) / 0.5;
+        start = [248, 248, 248];
+        end = [104, 160, 118];
+        t = (easedRatio - 0.5) / 0.5;
     }
 
     const r = Math.round(start[0] + (end[0] - start[0]) * t);
     const g = Math.round(start[1] + (end[1] - start[1]) * t);
     const b = Math.round(start[2] + (end[2] - start[2]) * t);
 
-    const background = `rgba(${r}, ${g}, ${b}, 0.80)`;
-    const textColor = ratio < 0.4 ? "#6d2323" : ratio > 0.6 ? "#20492f" : "#45574a";
+    const background = `rgba(${r}, ${g}, ${b}, 0.82)`;
+    const textColor = easedRatio < 0.35 ? "#6d2323" : easedRatio > 0.65 ? "#20492f" : "#45574a";
 
     return { background, textColor };
 }
@@ -2696,7 +2700,13 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
     const globalMax = allValues.length ? Math.max(...allValues) : null;
 
     const rows = visibleHorses
-        .sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }))
+        .sort((a, b) => {
+            const ageA = getHorseAgeYears(a);
+            const ageB = getHorseAgeYears(b);
+            const ageDiff = (ageB ?? 0) - (ageA ?? 0);
+            if (ageDiff !== 0) return ageDiff;
+            return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+        })
         .map((horse) => {
             const valueCells = westernDisciplines.map((discipline) => {
                 const value = calculateTournamentValue(horse, discipline);
