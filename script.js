@@ -1209,14 +1209,55 @@ function calculateExteriorAverage(obj) {
    🧬 ZUCHT SYSTEM
 ========================= */
 
-function getHorseAgeYears(horse) {
-    const rawAge = horse?.alterJahre ?? horse?.alter ?? horse?.age ?? null;
+function extractHorseAgeFromText(horse) {
+    if (!horse || typeof horse !== "object") return null;
 
-    if (typeof rawAge === "number" && Number.isFinite(rawAge)) return rawAge;
-    if (typeof rawAge === "string") {
-        const parsed = Number(rawAge.replace(/[^0-9.,]/g, "").replace(",", "."));
-        return Number.isFinite(parsed) ? parsed : null;
+    const candidates = [
+        horse?.rawText,
+        horse?.text,
+        horse?.beschreibung,
+        horse?.details,
+        horse?.info,
+        horse?.source,
+        horse?.importText,
+        horse?.raw
+    ].filter((value) => typeof value === "string");
+
+    for (const text of candidates) {
+        const match = text.match(/(\d+(?:[.,]\d+)?)\s*(?:Jahre|Jahr|J\.)/i);
+        if (match) {
+            const parsed = Number(match[1].replace(",", "."));
+            if (Number.isFinite(parsed)) return parsed;
+        }
     }
+
+    return null;
+}
+
+function getHorseAgeYears(horse) {
+    const candidates = [
+        horse?.alterJahre,
+        horse?.alter,
+        horse?.age,
+        horse?.years,
+        horse?.alterjahre,
+        horse?.alterJahr,
+        horse?.ageYears,
+        horse?.yearsOld,
+        horse?.alter_in_jahren,
+        horse?.age_in_years
+    ];
+
+    for (const rawAge of candidates) {
+        if (typeof rawAge === "number" && Number.isFinite(rawAge)) return rawAge;
+        if (typeof rawAge === "string") {
+            const parsed = Number(rawAge.replace(/[^0-9.,]/g, "").replace(",", "."));
+            if (Number.isFinite(parsed)) return parsed;
+        }
+    }
+
+    const fallback = extractHorseAgeFromText(horse);
+    if (fallback !== null) return fallback;
 
     return null;
 }
@@ -2714,6 +2755,12 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
             const ageB = getHorseAgeYears(b);
             const ageDiff = (ageB ?? 0) - (ageA ?? 0);
             if (ageDiff !== 0) return ageDiff;
+
+            const fallbackA = extractHorseAgeFromText(a);
+            const fallbackB = extractHorseAgeFromText(b);
+            const fallbackDiff = (fallbackB ?? 0) - (fallbackA ?? 0);
+            if (fallbackDiff !== 0) return fallbackDiff;
+
             return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
         });
 
@@ -2737,9 +2784,11 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
                 ? Math.round(average.reduce((sum, value) => sum + value, 0) / average.length)
                 : null;
 
+            const ageLabel = getHorseAgeYears(horse) !== null ? `${getHorseAgeYears(horse)} J.` : "—";
+
             return `
                 <tr>
-                    <td><b>${escapeHtml(horse.name)}</b></td>
+                    <td><b>${escapeHtml(horse.name)}</b><div class="turnier-horse-age">${ageLabel}</div></td>
                     <td>${avgValue !== null ? avgValue : "—"}</td>
                     ${valueCells}
                 </tr>

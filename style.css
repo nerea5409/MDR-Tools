@@ -1029,6 +1029,13 @@ select:focus {
   gap: 1px;
 }
 
+.turnier-horse-age {
+  font-size: 0.66rem;
+  color: rgba(43, 61, 49, 0.7);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
 .turnier-overview-value {
   line-height: 1.1;
 }
