@@ -93,9 +93,44 @@ function zeigeTool(name) {
         populateBreedingDropdowns();
     }
 
+    if (name === "turnier") {
+        setTurnierSubtab("analyse");
+        renderOwnerTurnierComparison(pferde, "turnier_comparison");
+    }
+
     if (name === "zucht") {
         const legacyLiveBox = document.getElementById("breeding_inbreeding_status");
         if (legacyLiveBox) legacyLiveBox.remove();
+    }
+}
+
+function initTurnierOverview() {
+    const container = document.getElementById("turnier_comparison");
+    if (!container) return;
+
+    const currentTab = document.querySelector(".turnier-subtab.active")?.dataset.turnierTab;
+    if (currentTab === "uebersicht") {
+        renderOwnerTurnierComparison(pferde, "turnier_comparison");
+    }
+}
+
+function setTurnierSubtab(tabName) {
+    const buttons = document.querySelectorAll(".turnier-subtab");
+    const panels = document.querySelectorAll(".turnier-panel");
+
+    buttons.forEach((button) => {
+        const isActive = button.dataset.turnierTab === tabName;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+
+    panels.forEach((panel) => {
+        const isActive = panel.id === (tabName === "uebersicht" ? "turnier_overview_panel" : "turnier_analyse_panel");
+        panel.classList.toggle("active", isActive);
+    });
+
+    if (tabName === "uebersicht") {
+        renderOwnerTurnierComparison(pferde, "turnier_comparison");
     }
 }
 
@@ -170,9 +205,7 @@ async function parsePferd() {
     const breedMode = document.getElementById("importBreedMode")?.value || "auto";
 
     const detectedBreed = findRasse(raw);
-    const resolvedBreed = breedMode === "auto"
-        ? detectedBreed
-        : (breedMode === "criollo" ? "Criollo" : "Quarter Horse");
+    const resolvedBreed = breedMode === "auto" ? detectedBreed : "Quarter Horse";
 
     const pferd = {
         name: findName(raw),
@@ -180,6 +213,7 @@ async function parsePferd() {
         rasse: resolvedBreed,
         gp: findGP(raw),
         besitzer: findBesitzer(raw),
+        alterJahre: findAlterJahre(raw),
         abstammung: extractPedigree(raw),
         farbe: extractAlleles(raw),
         interieur: extractInterior(raw),
@@ -402,7 +436,18 @@ function findName(text) {
     return "";
 }
 
+function findAlterJahre(text) {
+    const lines = String(text || "").split(/\r?\n/);
 
+    for (const line of lines) {
+        const match = line.match(/(\d+(?:[.,]\d+)?)\s*(?:Jahre|Jahr|J\.)/i);
+        if (match) {
+            return Number(match[1].replace(",", "."));
+        }
+    }
+
+    return null;
+}
 
 /* Besitzer */
 
@@ -691,7 +736,6 @@ function normalizeOwner(value) {
 function normalizeRasse(value) {
     const normalized = String(value || "").toLowerCase().trim();
     if (!normalized) return "Quarter Horse";
-    if (normalized.includes("criollo")) return "Criollo";
     if (normalized.includes("quarter")) return "Quarter Horse";
     if (normalized.includes("american quarter horse")) return "Quarter Horse";
     return "Quarter Horse";
@@ -699,7 +743,6 @@ function normalizeRasse(value) {
 
 function findRasse(text) {
     const source = String(text || "");
-    if (/criollo/i.test(source)) return "Criollo";
     if (/american\s+quarter\s+horse|quarter\s+horse/i.test(source)) return "Quarter Horse";
     return "Quarter Horse";
 }
@@ -794,7 +837,8 @@ function extractInterior(text) {
 }
 
 function calculateInteriorAverage(obj) {
-    const vals = Object.values(obj).filter(v => v > 0);
+    const source = obj && typeof obj === "object" ? obj : {};
+    const vals = Object.values(source).filter((v) => typeof v === "number" && v > 0);
     if (!vals.length) return "0.00";
     return (vals.reduce((a,b)=>a+b,0) / vals.length).toFixed(2);
 }
@@ -1145,24 +1189,47 @@ function evaluateExteriorFixed(left, right) {
 ========================= */
 
 function calculateExteriorAverage(obj) {
+    if (!obj || typeof obj !== "object") return "0.00";
 
     const vals = Object.values(obj)
-        .map(v => {
-            if (typeof v === "number") return v;
-            if (v && typeof v.score === "number") return v.score;
+        .map((v) => {
+            if (typeof v === "number" && Number.isFinite(v)) return v;
+            if (v && typeof v === "object" && typeof v.score === "number" && Number.isFinite(v.score)) return v.score;
             return null;
         })
-        .filter(v => v !== null);
+        .filter((v) => typeof v === "number" && Number.isFinite(v));
 
     if (!vals.length) return "0.00";
 
-    return (vals.reduce((a,b)=>a+b,0) / vals.length).toFixed(2);
+    return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
 }
 
 
 /* =========================
    🧬 ZUCHT SYSTEM
 ========================= */
+
+function getHorseAgeYears(horse) {
+    const rawAge = horse?.alterJahre ?? horse?.alter ?? horse?.age ?? null;
+
+    if (typeof rawAge === "number" && Number.isFinite(rawAge)) return rawAge;
+    if (typeof rawAge === "string") {
+        const parsed = Number(rawAge.replace(/[^0-9.,]/g, "").replace(",", "."));
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+}
+
+function isFoalHorse(horse) {
+    const age = getHorseAgeYears(horse);
+    return age !== null && age < 3;
+}
+
+function isBreedingEligibleHorse(horse) {
+    const age = getHorseAgeYears(horse);
+    return age === null || age >= 3;
+}
 
 function populateBreedingDropdowns() {
 
@@ -1179,16 +1246,17 @@ function populateBreedingDropdowns() {
     if (colorStallion) colorStallion.innerHTML = "";
 
     pferde.forEach((p, i) => {
-
         const opt = document.createElement("option");
         opt.value = i;
         opt.textContent = p.name;
 
-        if (p.geschlecht === "Stute") {
+        const isEligible = isBreedingEligibleHorse(p);
+
+        if (p.geschlecht === "Stute" && isEligible) {
             mare.appendChild(opt);
             if (colorMare) colorMare.appendChild(opt.cloneNode(true));
         }
-        if (p.geschlecht === "Hengst") {
+        if (p.geschlecht === "Hengst" && isEligible) {
             stallion.appendChild(opt.cloneNode(true));
             if (colorStallion) colorStallion.appendChild(opt.cloneNode(true));
         }
@@ -1388,6 +1456,11 @@ function simulateBreeding() {
 
     if (!mare || !stallion) {
         alert("Bitte Eltern auswählen oder gültige Rohdaten für Stute/Hengst einfügen!");
+        return;
+    }
+
+    if (!isBreedingEligibleHorse(mare) || !isBreedingEligibleHorse(stallion)) {
+        alert("Für Zucht-Simulationen sind nur Pferde ab 3 Jahren erlaubt.");
         return;
     }
 
@@ -2481,6 +2554,213 @@ async function deletePferd(i) {
     renderDatabase();
 }
 
+async function promoteFoalToAdult(horseName) {
+    const horse = pferde.find((entry) => entry.name === horseName);
+    if (!horse) return;
+
+    horse.alterJahre = 3;
+    writeLocalPferde(pferde);
+
+    try {
+        await persistPferdeToRemote();
+    } catch {
+        // Keep local data in sync even if the remote store is temporarily unavailable.
+    }
+
+    renderDatabase();
+}
+
+function getTurnierCellColors(value, globalMin, globalMax) {
+    if (globalMax === null || globalMin === null || globalMax <= globalMin) {
+        return {
+            background: "rgba(255, 255, 255, 0.78)",
+            textColor: "#45574a"
+        };
+    }
+
+    let ratio = (value - globalMin) / (globalMax - globalMin);
+    ratio = Math.max(0, Math.min(1, ratio));
+
+    let start;
+    let end;
+    let t;
+
+    if (ratio < 0.5) {
+        start = [214, 79, 79];
+        end = [255, 255, 255];
+        t = ratio / 0.5;
+    } else {
+        start = [255, 255, 255];
+        end = [96, 154, 110];
+        t = (ratio - 0.5) / 0.5;
+    }
+
+    const r = Math.round(start[0] + (end[0] - start[0]) * t);
+    const g = Math.round(start[1] + (end[1] - start[1]) * t);
+    const b = Math.round(start[2] + (end[2] - start[2]) * t);
+
+    const background = `rgba(${r}, ${g}, ${b}, 0.80)`;
+    const textColor = ratio < 0.4 ? "#6d2323" : ratio > 0.6 ? "#20492f" : "#45574a";
+
+    return { background, textColor };
+}
+
+function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (containerId !== "turnier_comparison") {
+        const owners = new Map();
+
+        horses.forEach((horse) => {
+            const ownerName = normalizeOwner(horse.besitzer);
+            if (!owners.has(ownerName)) {
+                owners.set(ownerName, []);
+            }
+            owners.get(ownerName).push(horse);
+        });
+
+        const rows = Array.from(owners.entries())
+            .sort((a, b) => a[0].localeCompare(b[0], "de", { sensitivity: "base" }))
+            .map(([ownerName, ownerHorses]) => {
+                const westernDisciplines = ["Reining", "Trail", "Pleasure", "Horsemanship"];
+                const values = westernDisciplines.map((discipline) => {
+                    const valuesForDiscipline = ownerHorses
+                        .map((horse) => calculateTournamentValue(horse, discipline))
+                        .filter((value) => Number.isFinite(value));
+
+                    if (!valuesForDiscipline.length) return null;
+                    return valuesForDiscipline.reduce((sum, value) => sum + value, 0) / valuesForDiscipline.length;
+                });
+
+                const avgWestern = values.reduce((sum, value) => sum + (value ?? 0), 0) / Math.max(1, values.filter(Boolean).length);
+
+                return `
+                    <tr>
+                        <td><b>${escapeHtml(ownerName)}</b></td>
+                        <td>${ownerHorses.length}</td>
+                        <td>${avgWestern ? avgWestern.toFixed(0) : "—"}</td>
+                        <td>${values[0] ? values[0].toFixed(0) : "—"}</td>
+                        <td>${values[1] ? values[1].toFixed(0) : "—"}</td>
+                        <td>${values[2] ? values[2].toFixed(0) : "—"}</td>
+                        <td>${values[3] ? values[3].toFixed(0) : "—"}</td>
+                    </tr>
+                `;
+            })
+            .join("");
+
+        container.innerHTML = `
+            <h3>Turniervergleich · Western (nach Besitzer)</h3>
+            <p>Durchschnittswerte der Western-Disziplinen je Besitzer.</p>
+            ${rows ? `
+                <div class="db-comparison-table-wrap">
+                    <table class="db-comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Besitzer</th>
+                                <th>Pferde</th>
+                                <th>Western Ø</th>
+                                <th>Reining</th>
+                                <th>Trail</th>
+                                <th>Pleasure</th>
+                                <th>Horsemanship</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            ` : `<div class="db-comparison-empty">Noch keine ausreichenden Turnierdaten für einen Vergleich vorhanden.</div>`}
+        `;
+        return;
+    }
+
+    const owners = [...new Set(horses.map((horse) => normalizeOwner(horse.besitzer)).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
+
+    const selectedOwner = document.getElementById("turnierOwnerSelect")?.value || "__all__";
+    const ownerToShow = owners.includes(selectedOwner) ? selectedOwner : (owners[0] || "__all__");
+
+    const visibleHorses = horses.filter((horse) => {
+        const ownerName = normalizeOwner(horse.besitzer);
+        return ownerToShow === "__all__" || ownerName === ownerToShow;
+    });
+
+    const westernDisciplines = ["Reining", "Trail", "Pleasure", "Horsemanship"];
+    const allValues = visibleHorses
+        .flatMap((horse) => westernDisciplines
+            .map((discipline) => calculateTournamentValue(horse, discipline))
+            .filter((value) => Number.isFinite(value))
+        );
+
+    const globalMin = allValues.length ? Math.min(...allValues) : null;
+    const globalMax = allValues.length ? Math.max(...allValues) : null;
+
+    const rows = visibleHorses
+        .sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }))
+        .map((horse) => {
+            const valueCells = westernDisciplines.map((discipline) => {
+                const value = calculateTournamentValue(horse, discipline);
+                if (!Number.isFinite(value)) {
+                    return `<td class="turnier-overview-cell turnier-overview-cell-empty">—</td>`;
+                }
+
+                const { background, textColor } = getTurnierCellColors(value, globalMin, globalMax);
+                const lk = calculateDisciplineLevel(horse, discipline);
+                const lkBadge = lk ? `<span class="turnier-lk-badge">${lk}</span>` : "";
+                return `<td class="turnier-overview-cell" style="background:${background}; color:${textColor};"><div class="turnier-overview-value-wrap"><span class="turnier-overview-value">${value}</span>${lkBadge}</div></td>`;
+            }).join("");
+
+            const average = westernDisciplines
+                .map((discipline) => calculateTournamentValue(horse, discipline))
+                .filter((value) => Number.isFinite(value));
+            const avgValue = average.length
+                ? Math.round(average.reduce((sum, value) => sum + value, 0) / average.length)
+                : null;
+
+            return `
+                <tr>
+                    <td><b>${escapeHtml(horse.name)}</b></td>
+                    <td>${avgValue !== null ? avgValue : "—"}</td>
+                    ${valueCells}
+                </tr>
+            `;
+        })
+        .join("");
+
+    const ownerOptions = [
+        { value: "__all__", label: "Alle Besitzer" },
+        ...owners.map((owner) => ({ value: owner, label: owner }))
+    ];
+
+    container.innerHTML = `
+        <h3>Western-Turnierübersicht</h3>
+        <p>Wähle einen Besitzer aus, um alle Pferde und Fohlen mit ihren Western-Turnierwerten kompakt zu sehen.</p>
+        <div class="turnier-overview-toolbar">
+            <label for="turnierOwnerSelect">Besitzer</label>
+            <select id="turnierOwnerSelect" onchange="renderOwnerTurnierComparison(pferde, 'turnier_comparison')">
+                ${ownerOptions.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === ownerToShow ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+            </select>
+        </div>
+        ${rows ? `
+            <div class="db-comparison-table-wrap">
+                <table class="db-comparison-table turnier-overview-table">
+                    <thead>
+                        <tr>
+                            <th>Pferd</th>
+                            <th>Western Ø</th>
+                            <th>Reining</th>
+                            <th>Trail</th>
+                            <th>Pleasure</th>
+                            <th>Horsemanship</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        ` : `<div class="db-comparison-empty">Für diesen Besitzer liegen derzeit keine Western-Turnierdaten vor.</div>`}
+    `;
+}
+
 
 /* =========================
    📊 RENDER
@@ -2504,11 +2784,11 @@ function renderDatabase() {
         const currentRace = raceFilterEl.value || "__all__";
         raceFilterEl.innerHTML = `
             <option value="Quarter Horse">Quarter Horse</option>
-            <option value="Criollo">Criollo</option>
-            <option value="__all__">Alle Rassen</option>
+            <option value="Fohlen">Fohlen</option>
+            <option value="__all__">Alle</option>
         `;
 
-        const validRaces = new Set(["Quarter Horse", "Criollo", "__all__"]);
+        const validRaces = new Set(["Quarter Horse", "Fohlen", "__all__"]);
         raceFilterEl.value = validRaces.has(currentRace) ? currentRace : "Quarter Horse";
     }
 
@@ -2542,7 +2822,11 @@ function renderDatabase() {
 
     let sorted = pferde.filter((horse) => {
         const genderPass = filterGeschlecht === "__all__" || (horse.geschlecht || "Unbekannt") === filterGeschlecht;
-        const racePass = filterRasse === "__all__" || normalizeRasse(horse.rasse) === filterRasse;
+        const racePass = filterRasse === "__all__"
+            ? true
+            : (filterRasse === "Fohlen"
+                ? isFoalHorse(horse)
+                : !isFoalHorse(horse) && normalizeRasse(horse.rasse) === filterRasse);
         const ownerPass = filterBesitzer === "__all__" || normalizeOwner(horse.besitzer) === filterBesitzer;
         const searchPass = !dbSearchTerm || normalizeHorseName(horse.name).includes(dbSearchTerm);
         return genderPass && racePass && ownerPass && searchPass;
@@ -2582,6 +2866,8 @@ function renderDatabase() {
         );
     }
 
+    renderOwnerTurnierComparison(pferde, "db_comparison");
+
     sorted.forEach((p) => {
 
         const row = document.createElement("div");
@@ -2608,9 +2894,12 @@ function renderDatabase() {
                 ${escapeHtml(normalizeOwner(p.besitzer))}
             </div>
 
-            <button class="delete-btn">
-                X
-            </button>
+            <div style="display:flex; align-items:center; gap:6px;">
+                ${isFoalHorse(p) ? `<button class="age-btn" onclick="event.stopPropagation(); promoteFoalToAdult('${escapeHtml(p.name)}')">3 Jahre</button>` : ""}
+                <button class="delete-btn">
+                    X
+                </button>
+            </div>
         `;
 
         // 🧠 Klick nur wenn NICHT Delete
@@ -2863,24 +3152,75 @@ function showStallionView(horse, options = {}) {
     const intAvg = calculateInteriorAverage(horse.interieur || {});
     const extAvg = calculateExteriorAverage(horse.exterieur || {});
 
+    const mares = pferde.filter((candidate) => candidate.geschlecht === "Stute" && isBreedingEligibleHorse(candidate));
+
+    const mateRows = mares.map((mare) => {
+        const range = calculateExteriorRange(mare, horse);
+        const inbreeding = getInbreedingRisk(mare, horse);
+        const rowClass = inbreeding.isRisk ? "compare-row-risk" : (inbreeding.warningReasons?.length ? "compare-row-warn" : "");
+        const inbreedingCell = inbreeding.isRisk
+            ? `<span title="${escapeHtml(inbreeding.reasons.join(" · "))}" style="color:#8e1b1b; font-weight:700;">Ja</span>`
+            : (inbreeding.warningReasons?.length
+                ? `<span title="${escapeHtml(inbreeding.warningReasons.join(" · "))}" style="color:#8a4b00; font-weight:700;">Prüfen</span>`
+                : `<span style="color:#2e7d32; font-weight:600;">Nein</span>`);
+
+        return `
+            <tr class="${rowClass}">
+                <td><b>${escapeHtml(mare.name)}</b></td>
+                <td>${mare.gp || 0}</td>
+                <td><span class="score-chip score-chip-good">${range.best}</span></td>
+                <td><span class="score-chip score-chip-warn">${range.worst}</span></td>
+                <td>${(Number(range.worst) - Number(range.best)).toFixed(2)}</td>
+                <td>${inbreedingCell}</td>
+                <td><button class="btn btn-mini" onclick="showStallionDetailFromMare(${pferde.indexOf(mare)}, ${pferde.indexOf(horse)})">Details</button></td>
+            </tr>
+        `;
+    }).join("");
+
     const header = `
         <div class="detail-header">
 
             <button class="btn back-btn" onclick="${backAction}">${backLabel}</button>
 
             <div class="detail-title-block">
-                <h2>${horse.name}</h2>
+                <h2>${escapeHtml(horse.name)}</h2>
                 <p class="detail-meta">GP ${horse.gp || 0} · Int Ø ${intAvg} · Ext Ø ${extAvg}</p>
             </div>
 
             <div class="view-switch">
-                <button class="active">Turnier</button>
+                <button id="btnZucht" onclick="showView('zucht')">Zucht</button>
+                <button id="btnTurnier" class="active" onclick="showView('turnier')">Turnier</button>
             </div>
 
         </div>
     `;
 
-    const content = renderTournamentProfile(horse);
+    const content = `
+        <div id="view-zucht" style="display:none;">
+            <p class="compare-summary">Übersicht aller geeigneten Stuten für ${escapeHtml(horse.name)} · nur Pferde ab 3 Jahren</p>
+            <div class="compare-table-wrap">
+                <table class="compare-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>GP</th>
+                            <th>Best</th>
+                            <th>Worst</th>
+                            <th>Spanne</th>
+                            <th>Inzucht</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${mateRows || `<tr><td colspan="7" class="compare-empty">Keine passenden Stuten gefunden.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="view-turnier">
+            ${renderTournamentProfile(horse)}
+        </div>
+    `;
 
     container.innerHTML = header + content;
 }
@@ -3097,6 +3437,9 @@ function showMareCombinations(mare) {
 
     const inbreedingCount = stallions.filter((stallion) => getRisk(stallion).isRisk).length;
     const bookmarkedCount = stallions.filter((stallion) => isMareStallionBookmarked(mare, stallion)).length;
+    const foalPromotionHtml = isFoalHorse(mare)
+        ? `<button class="btn" style="margin-top:0;" onclick="promoteFoalToAdult('${escapeHtml(mare.name)}')">3 Jahre erreicht · in regulären Tab verschieben</button>`
+        : "";
 
     const stallionRows = stallions.map((stallion, index) => {
         const range = getRange(stallion);
@@ -3148,6 +3491,8 @@ function showMareCombinations(mare) {
         </div>
 
         <div id="view-zucht">
+
+            ${foalPromotionHtml ? `<div style="margin-bottom: 12px;">${foalPromotionHtml}</div>` : ""}
 
             <div class="compare-toolbar">
                 <label class="compare-check">
@@ -3397,8 +3742,6 @@ function calculateDisciplineLevel(horse, disciplineName) {
     const requiredPerformance = required.slice(0, 7);
     if (!requiredPerformance.length) return null;
 
-
-    // Hauptdisziplin muss vorhanden sein
     const mainSkill = requiredPerformance[0];
     const mainValue = getSkillValue(horse.leistungen[mainSkill]);
 
@@ -3406,27 +3749,20 @@ function calculateDisciplineLevel(horse, disciplineName) {
         return null;
     }
 
-
-    // Engpass-Prinzip:
-    // niedrigster vorhandener Wert bestimmt die LK
     let worstPercent = mainValue;
 
-
     for (let i = 1; i < requiredPerformance.length; i++) {
-
         const skill = requiredPerformance[i];
         const value = getSkillValue(horse.leistungen[skill]);
 
-        // Turnier-LK nur berechnen, wenn alle geforderten Werte vorhanden sind.
         if (value === null) {
-            return null;
+            continue;
         }
 
         if (value < worstPercent) {
             worstPercent = value;
         }
     }
-
 
     return calculatePerformanceClass(worstPercent);
 }
@@ -3441,12 +3777,19 @@ function calculateDisciplineLevelFallback(horse, disciplineName) {
     const requiredPerformance = required.slice(0, 7);
     if (!requiredPerformance.length) return null;
 
-    let worstPercent = null;
+    const mainSkill = requiredPerformance[0];
+    const mainValue = getSkillValue(horse.leistungen[mainSkill]);
 
-    for (const skill of requiredPerformance) {
+    if (mainValue === null) {
+        return null;
+    }
+
+    let worstPercent = mainValue;
+
+    for (const skill of requiredPerformance.slice(1)) {
         const value = getSkillValue(horse.leistungen[skill]);
-        if (value === null) return null;
-        if (worstPercent === null || value < worstPercent) {
+        if (value === null) continue;
+        if (value < worstPercent) {
             worstPercent = value;
         }
     }
@@ -3634,7 +3977,6 @@ function calculateTournamentValue(horse, disciplineName) {
     const required = DISCIPLINES[disciplineName];
     if (!required) return null;
 
-    // Points are based on discipline + six basics (first 7 entries in the requirement list).
     const requiredPerformance = required.slice(0, 7);
     if (!requiredPerformance.length) return null;
 
@@ -3644,10 +3986,11 @@ function calculateTournamentValue(horse, disciplineName) {
     const mainSkill = requiredPerformance[0];
 
     for (let skill of requiredPerformance) {
-
         const value = getTournamentSkillValue(horse.leistungen[skill]);
 
-        if (value === null) return null;
+        if (value === null) {
+            continue;
+        }
 
         if (skill === mainSkill) {
             totalPoints += value * 3;

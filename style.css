@@ -45,6 +45,66 @@ main {
   flex: 1;
 }
 
+.turnier-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+}
+
+.turnier-subnav {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 16px;
+  flex-wrap: wrap;
+}
+
+.turnier-subtab {
+  border: 1px solid rgba(31, 58, 46, 0.16);
+  background: #f8efe0;
+  color: var(--primary);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.turnier-subtab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.turnier-panel {
+  display: none;
+}
+
+.turnier-panel.active {
+  display: block;
+}
+
+.turnier-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1.05fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.turnier-import-card,
+.turnier-result-card {
+  min-height: 100%;
+}
+
+.turnier-result-card {
+  padding: 20px;
+}
+
+@media (max-width: 900px) {
+  .turnier-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .site-credits {
   margin: 24px 20px 16px;
   padding-top: 10px;
@@ -727,6 +787,26 @@ header::after {
   margin-bottom: 15px;
 }
 
+@media (max-width: 700px) {
+  .detail-header {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .detail-header .back-btn {
+    justify-self: start;
+  }
+
+  .detail-title-block {
+    order: -1;
+  }
+
+  .view-switch {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
 /* Name exakt zentriert */
 .detail-header h2 {
   text-align: center;
@@ -841,6 +921,135 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 7px;
+}
+
+.db-comparison-card {
+  margin: 0 0 16px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 58, 46, 0.12);
+  background: linear-gradient(135deg, #fcf7eb, #f4ebda);
+  box-shadow: 0 6px 16px rgba(22, 35, 29, 0.05);
+}
+
+.db-comparison-card h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  color: #213d2f;
+}
+
+.db-comparison-card p {
+  margin: 0 0 10px;
+  color: #5b665e;
+  font-size: 0.9rem;
+}
+
+.db-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.db-comparison-table th,
+.db-comparison-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(31, 58, 46, 0.08);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.db-comparison-table th {
+  background: rgba(31, 58, 46, 0.07);
+  color: #294438;
+  font-weight: 700;
+}
+
+.db-comparison-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.db-comparison-empty {
+  color: #647367;
+  font-size: 0.9rem;
+}
+
+.turnier-overview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.turnier-overview-toolbar label {
+  font-weight: 600;
+  color: #294438;
+}
+
+.turnier-overview-toolbar select {
+  max-width: 260px;
+}
+
+.turnier-overview-table th,
+.turnier-overview-table td {
+  font-size: 0.8rem;
+}
+
+.turnier-overview-table th:nth-child(n+3),
+.turnier-overview-table td:nth-child(n+3) {
+  width: 92px !important;
+  min-width: 92px !important;
+  max-width: 92px !important;
+}
+
+.turnier-overview-table .turnier-overview-cell {
+  font-weight: 700;
+  color: #233b2e;
+  border-radius: 0 !important;
+  text-align: center;
+  white-space: nowrap;
+  min-width: 92px !important;
+  width: 92px !important;
+  max-width: 92px !important;
+  padding: 7px 6px;
+  overflow: hidden;
+}
+
+.turnier-overview-cell-empty {
+  color: #6f7b73;
+  background: rgba(255,255,255,0.55) !important;
+}
+
+.turnier-overview-value-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.turnier-overview-value {
+  line-height: 1.1;
+}
+
+.turnier-lk-badge {
+  display: inline-block;
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 500;
+  padding: 0 2px;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(43, 61, 49, 0.7);
+  border: 0;
+  letter-spacing: 0.02em;
+}
+
+.turnier-lk-badge::before {
+  content: "—";
+  margin-right: 3px;
+  color: rgba(43, 61, 49, 0.44);
 }
 
 #db_liste.container {
@@ -1045,9 +1254,32 @@ select:focus {
   transform: scale(1);
 }
 
+.horse-row:hover .age-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .delete-btn:hover {
   background: #8a2d2d;
   color: white;
+}
+
+.age-btn {
+  opacity: 0;
+  transform: scale(0.9);
+  background: rgba(31, 58, 46, 0.08);
+  border: 1px solid rgba(31, 58, 46, 0.2);
+  color: #2e4b3a;
+  padding: 4px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: 0.2s ease;
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+.age-btn:hover {
+  background: rgba(31, 58, 46, 0.16);
 }
 
 
@@ -1686,7 +1918,8 @@ select:focus {
     width: calc(100% - 20px);
     padding: 8px 50px 8px 10px;
     gap: 12px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    align-items: flex-start;
   }
 
   .database-tools select {
@@ -1701,6 +1934,10 @@ select:focus {
 
   .database-actions {
     right: 8px;
+  }
+
+  .compare-toolbar {
+    flex-wrap: wrap;
   }
 
   .compare-toolbar input,

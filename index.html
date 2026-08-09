@@ -8,6 +8,38 @@
 
   <link rel="stylesheet" href="style.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .turnier-overview-table .turnier-overview-cell {
+      border-radius: 0 !important;
+      min-width: 92px !important;
+      width: 92px !important;
+      max-width: 92px !important;
+      overflow: hidden;
+    }
+    .turnier-overview-table th:nth-child(n+3),
+    .turnier-overview-table td:nth-child(n+3) {
+      width: 92px !important;
+      min-width: 92px !important;
+      max-width: 92px !important;
+    }
+    .turnier-lk-badge {
+      display: inline-block;
+      margin: 0;
+      font-size: 0.62rem;
+      font-weight: 500;
+      padding: 0 2px;
+      border-radius: 0;
+      background: transparent;
+      color: rgba(43, 61, 49, 0.7);
+      border: 0;
+      letter-spacing: 0.02em;
+    }
+    .turnier-lk-badge::before {
+      content: "—";
+      margin-right: 3px;
+      color: rgba(43, 61, 49, 0.44);
+    }
+  </style>
 </head>
 
 <body>
@@ -92,7 +124,6 @@
       <select id="importBreedMode" style="margin-bottom:10px;">
         <option value="auto">Automatisch erkennen</option>
         <option value="quarter">Quarter Horse</option>
-        <option value="criollo">Criollo</option>
       </select>
 
       <textarea id="pferd_raw" placeholder="MDR Pferdeblock hier einfügen..."></textarea>
@@ -117,7 +148,7 @@
 
   <div id="db_race_switch" class="view-switch db-race-view-switch" role="tablist" aria-label="Rasse umschalten" style="margin: 0 36px 10px;">
     <button type="button" class="active" data-race="Quarter Horse" onclick="setDatabaseRaceTab('Quarter Horse')">Quarter</button>
-    <button type="button" data-race="Criollo" onclick="setDatabaseRaceTab('Criollo')">Criollos</button>
+    <button type="button" data-race="Fohlen" onclick="setDatabaseRaceTab('Fohlen')">Fohlen</button>
   </div>
 
   <div id="db_sortbar" class="database-tools" style="margin-bottom:15px;">
@@ -142,8 +173,8 @@
 
     <select id="dbFilterRasse" class="db-race-select-hidden" onchange="renderDatabase()" aria-hidden="true" tabindex="-1">
       <option value="Quarter Horse">Quarter Horse</option>
-      <option value="Criollo">Criollo</option>
-      <option value="__all__">Alle Rassen</option>
+      <option value="Fohlen">Fohlen</option>
+      <option value="__all__">Alle</option>
     </select>
 
     <label class="db-inline-label" for="dbFilterBesitzer"><b>Besitzer</b></label>
@@ -170,6 +201,8 @@
   </div>
 
   <div class="container">
+
+    <div id="db_comparison" class="db-comparison-card"></div>
 
     <div class="card">
       <div class="parent-input-shell">
@@ -227,18 +260,31 @@
     <p>Turnierwerte analysieren - auch ohne Speichern. Pferdedaten wie beim Import einfach per Copy & Paste der MDR-Seite einfügen und direkt die Turnier-Tabellen ansehen</p>
   </div>
 
-  <div class="container">
-    <div class="card form-card">
-      <h3>Turnierblock testen (ohne Speichern)</h3>
-      <textarea id="turnier_raw" placeholder="MDR-Block oder relevanter Leistungs-/Interieur-Abschnitt..."></textarea>
-      <div class="action-row">
-        <button class="btn" onclick="analyzeTournamentInput()"> Analysieren</button>
-        <button class="btn start-secondary" onclick="resetTournamentInput()">↺ Reset</button>
+  <div class="turnier-shell">
+    <div class="turnier-subnav" role="tablist" aria-label="Turnier Untermenü">
+      <button type="button" class="turnier-subtab active" data-turnier-tab="analyse" onclick="setTurnierSubtab('analyse')">Analyse</button>
+      <button type="button" class="turnier-subtab" data-turnier-tab="uebersicht" onclick="setTurnierSubtab('uebersicht')">Übersicht</button>
+    </div>
+
+    <div id="turnier_analyse_panel" class="turnier-panel active">
+      <div class="turnier-grid">
+        <div class="card form-card turnier-import-card">
+          <h3>Turnierblock testen (ohne Speichern)</h3>
+          <textarea id="turnier_raw" placeholder="MDR-Block oder relevanter Leistungs-/Interieur-Abschnitt..."></textarea>
+          <div class="action-row">
+            <button class="btn" onclick="analyzeTournamentInput()"> Analysieren</button>
+            <button class="btn start-secondary" onclick="resetTournamentInput()">↺ Reset</button>
+          </div>
+        </div>
+
+        <div id="turnier_result" class="breeding-panel turnier-result-card">
+          <p>Noch keine Analyse gestartet.</p>
+        </div>
       </div>
     </div>
 
-    <div id="turnier_result" class="breeding-panel">
-      <p>Noch keine Analyse gestartet.</p>
+    <div id="turnier_overview_panel" class="turnier-panel">
+      <div id="turnier_comparison" class="db-comparison-card"></div>
     </div>
   </div>
 </section>
