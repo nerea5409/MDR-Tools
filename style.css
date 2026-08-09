@@ -978,8 +978,8 @@ select:focus {
 .turnier-overview-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 6px;
   flex-wrap: wrap;
 }
 
@@ -994,14 +994,15 @@ select:focus {
 
 .turnier-overview-table th,
 .turnier-overview-table td {
-  font-size: 0.8rem;
+  font-size: 0.74rem;
+  padding: 2px 3px;
 }
 
 .turnier-overview-table th:nth-child(n+3),
 .turnier-overview-table td:nth-child(n+3) {
-  width: 84px !important;
-  min-width: 84px !important;
-  max-width: 84px !important;
+  width: 76px !important;
+  min-width: 76px !important;
+  max-width: 76px !important;
 }
 
 .turnier-overview-table .turnier-overview-cell {
@@ -1010,11 +1011,13 @@ select:focus {
   border-radius: 0 !important;
   text-align: center;
   white-space: nowrap;
-  min-width: 84px !important;
-  width: 84px !important;
-  max-width: 84px !important;
-  padding: 5px 4px;
+  min-width: 76px !important;
+  width: 76px !important;
+  max-width: 76px !important;
+  padding: 2px 3px;
   overflow: hidden;
+  line-height: 0.95;
+  font-size: 0.72rem;
 }
 
 .turnier-overview-cell-empty {
@@ -1030,20 +1033,20 @@ select:focus {
 }
 
 .turnier-horse-age {
-  font-size: 0.66rem;
+  font-size: 0.58rem;
   color: rgba(43, 61, 49, 0.7);
   font-weight: 500;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .turnier-overview-value {
-  line-height: 1.1;
+  line-height: 0.95;
 }
 
 .turnier-lk-badge {
   display: inline-block;
   margin: 0;
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 500;
   padding: 0 2px;
   border-radius: 0;
