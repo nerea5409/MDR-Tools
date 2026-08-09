@@ -2748,21 +2748,7 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
     const globalMin = allValues.length ? Math.min(...allValues) : null;
     const globalMax = allValues.length ? Math.max(...allValues) : null;
 
-    const sortedHorses = visibleHorses
-        .slice()
-        .sort((a, b) => {
-            const ageA = getHorseAgeYears(a);
-            const ageB = getHorseAgeYears(b);
-            const ageDiff = (ageB ?? 0) - (ageA ?? 0);
-            if (ageDiff !== 0) return ageDiff;
-
-            const fallbackA = extractHorseAgeFromText(a);
-            const fallbackB = extractHorseAgeFromText(b);
-            const fallbackDiff = (fallbackB ?? 0) - (fallbackA ?? 0);
-            if (fallbackDiff !== 0) return fallbackDiff;
-
-            return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
-        });
+    const sortedHorses = visibleHorses.slice();
 
     const rows = sortedHorses.map((horse) => {
             const valueCells = westernDisciplines.map((discipline) => {
@@ -2784,11 +2770,9 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
                 ? Math.round(average.reduce((sum, value) => sum + value, 0) / average.length)
                 : null;
 
-            const ageLabel = getHorseAgeYears(horse) !== null ? `${getHorseAgeYears(horse)} J.` : "—";
-
             return `
                 <tr>
-                    <td><b>${escapeHtml(horse.name)}</b><div class="turnier-horse-age">${ageLabel}</div></td>
+                    <td><b>${escapeHtml(horse.name)}</b></td>
                     <td>${avgValue !== null ? avgValue : "—"}</td>
                     ${valueCells}
                 </tr>
