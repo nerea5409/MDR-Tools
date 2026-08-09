@@ -1046,20 +1046,21 @@ select:focus {
 .turnier-lk-badge {
   display: inline-block;
   margin: 0;
-  font-size: 0.56rem;
-  font-weight: 500;
-  padding: 0 2px;
+  font-size: 0.5rem;
+  font-weight: 400;
+  padding: 0 1px;
   border-radius: 0;
   background: transparent;
-  color: rgba(43, 61, 49, 0.7);
+  color: rgba(43, 61, 49, 0.55);
   border: 0;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  opacity: 0.9;
 }
 
 .turnier-lk-badge::before {
   content: "—";
-  margin-right: 3px;
-  color: rgba(43, 61, 49, 0.44);
+  margin-right: 2px;
+  color: rgba(43, 61, 49, 0.34);
 }
 
 #db_liste.container {
