@@ -1278,27 +1278,12 @@ function analyzeExteriorInput() {
 ========================= */
 
 function evaluateExteriorFixed(left, right) {
+    const matches = summarizePositionMatches([...left, ...right]).totalCorrect;
 
-    let frontGood = 0;
-    let backGood = 0;
-
-    for (let g of left) {
-        if (g === "HH" || g === "Hh" || g === "hH") frontGood++;
-    }
-
-    for (let g of right) {
-        if (g === "hh") backGood++;
-    }
-
-    const frontDeviation = 4 - frontGood;
-    const backDeviation = 4 - backGood;
-
-    const worstDeviation = Math.max(frontDeviation, backDeviation);
-
-    if (worstDeviation <= 0) return 1;
-    if (worstDeviation === 1) return 2;
-    if (worstDeviation === 2) return 3;
-    if (worstDeviation === 3) return 4;
+    if (matches >= 8) return 1;
+    if (matches >= 6) return 2;
+    if (matches >= 4) return 3;
+    if (matches >= 2) return 4;
     return 5;
 }
 
