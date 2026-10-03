@@ -144,7 +144,7 @@ function initializeMdrHistory() {
 function zeigeTool(name) {
     const route = { section: name };
     if (name === "zucht") {
-        route.breedingTab = document.querySelector("[data-breeding-tab].active")?.dataset.breedingTab || "simulator";
+        route.breedingTab = document.querySelector("[data-breeding-tab].active")?.dataset.breedingTab || "exterior";
     }
     if (name === "turnier") route.turnierTab = "analyse";
     pushMdrHistory(route);
@@ -160,7 +160,7 @@ function zeigeTool(name) {
         renderStatistics();
     }
 
-    if (name === "zucht" || name === "farben") {
+    if (name === "zucht") {
         populateBreedingDropdowns();
     }
 
@@ -228,9 +228,12 @@ function setBreedingSubtab(tabName) {
     }
 
     const buttons = document.querySelectorAll("[data-breeding-tab]");
-    const simulator = document.getElementById("breeding_simulator_panel");
-    const pairing = document.getElementById("breeding_pairing_panel");
-    if (!simulator || !pairing) return;
+    const panels = {
+        exterior: document.getElementById("breeding_exterior_panel"),
+        color: document.getElementById("breeding_color_panel"),
+        pairing: document.getElementById("breeding_pairing_panel")
+    };
+    if (!panels[tabName]) return;
 
     buttons.forEach((button) => {
         const active = button.dataset.breedingTab === tabName;
@@ -238,8 +241,10 @@ function setBreedingSubtab(tabName) {
         button.setAttribute("aria-selected", active ? "true" : "false");
     });
 
-    simulator.style.display = tabName === "simulator" ? "block" : "none";
-    pairing.style.display = tabName === "pairing" ? "block" : "none";
+    Object.entries(panels).forEach(([name, panel]) => {
+        if (panel) panel.style.display = name === tabName ? "block" : "none";
+    });
+
     if (tabName === "pairing") renderPairingSearch();
 }
 

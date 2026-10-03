@@ -63,10 +63,9 @@
   <button onclick="zeigeTool('pferde'); toggleMenu()">Import</button>
   <button onclick="zeigeTool('datenbank'); toggleMenu()">Datenbank</button>
   <button onclick="zeigeTool('zucht'); toggleMenu()">Zucht</button>
-  <button onclick="zeigeTool('statistiken'); toggleMenu()">Statistiken</button>
   <button onclick="zeigeTool('turnier'); toggleMenu()">Turnier</button>
   <button onclick="zeigeTool('exterieur'); toggleMenu()">Exterieur</button>
-  <button onclick="zeigeTool('farben'); toggleMenu()">Farben</button>
+  <button onclick="zeigeTool('statistiken'); toggleMenu()">Statistiken</button>
 </nav>
 
 <!-- BACKDROP -->
@@ -203,11 +202,12 @@
 
   <div class="container">
     <div class="turnier-subnav breeding-subnav" role="tablist" aria-label="Zuchtbereich">
-      <button type="button" class="turnier-subtab active" data-breeding-tab="simulator" aria-selected="true" onclick="setBreedingSubtab('simulator')">Simulator</button>
+      <button type="button" class="turnier-subtab active" data-breeding-tab="exterior" aria-selected="true" onclick="setBreedingSubtab('exterior')">Exterieur</button>
+      <button type="button" class="turnier-subtab" data-breeding-tab="color" aria-selected="false" onclick="setBreedingSubtab('color')">Farbe</button>
       <button type="button" class="turnier-subtab" data-breeding-tab="pairing" aria-selected="false" onclick="setBreedingSubtab('pairing')">Paarungssuche</button>
     </div>
 
-    <div id="breeding_simulator_panel">
+    <div id="breeding_exterior_panel">
       <div class="card">
       <div class="parent-input-shell">
         <div class="parent-switch-row">
@@ -252,6 +252,54 @@
 
       <div id="breeding_result" class="breeding-panel">
         <p>Simulation starten, um Ergebnis zu sehen.</p>
+      </div>
+    </div>
+
+    <div id="breeding_color_panel" style="display:none;">
+      <div class="card form-card">
+        <div class="parent-input-shell">
+          <div class="parent-switch-row">
+            <h3>Eltern auswählen</h3>
+            <div class="parent-mode-switch" role="tablist" aria-label="Eingabemodus Farben">
+              <button id="colorModeDirectBtn" type="button" class="parent-mode-btn active" onclick="toggleParentInputMode('color','direct')">Direkt</button>
+              <button id="colorModeSavedBtn" type="button" class="parent-mode-btn" onclick="toggleParentInputMode('color','saved')">Gespeichert</button>
+            </div>
+          </div>
+
+          <div id="colorSavedPanel" class="parent-mode-panel" style="display:none;">
+            <label for="colorMareSelect">Stute</label>
+            <select id="colorMareSelect">
+              <option value="">Keine Stute vorhanden</option>
+            </select>
+
+            <label for="colorStallionSelect" style="margin-top:10px;">Hengst</label>
+            <select id="colorStallionSelect">
+              <option value="">Kein Hengst vorhanden</option>
+            </select>
+          </div>
+
+          <div id="colorDirectPanel" class="parent-mode-panel">
+            <div class="raw-label-row">
+              <label for="color_mare_raw">Stute - Rohdaten</label>
+              <button class="btn btn-reset-inline" onclick="resetColorRaw('mare')">↺</button>
+            </div>
+            <textarea id="color_mare_raw" class="raw-mini" placeholder="MDR-Block, Farben-Abschnitt oder Genzeile der Stute..."></textarea>
+
+            <div class="raw-label-row">
+              <label for="color_stallion_raw">Hengst - Rohdaten</label>
+              <button class="btn btn-reset-inline" onclick="resetColorRaw('stallion')">↺</button>
+            </div>
+            <textarea id="color_stallion_raw" class="raw-mini" placeholder="MDR-Block, Farben-Abschnitt oder Genzeile des Hengsts..."></textarea>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button id="colorAnalyzeBtn" type="button" class="btn" onclick="analyzeColorInput()">Farben berechnen</button>
+        </div>
+      </div>
+
+      <div id="color_result" class="breeding-panel">
+        <p>Noch keine Farbanalyse gestartet.</p>
       </div>
     </div>
 
@@ -340,62 +388,6 @@ Kopf HH Hh hh HH | hh hh Hh HH
         <button class="btn start-secondary" onclick="resetExteriorInput()">↺ Reset</button>
       </div>
       <div id="exterieur_result" class="breeding-panel" style="margin-top: 14px; display: none;"></div>
-    </div>
-  </div>
-</section>
-
-<!-- FARBEN -->
-<section id="farben" class="tool">
-  <div class="hero">
-    <h2>🎨 Farben</h2>
-    <p>Farbvererbung prüfen: funktioniert auch mit Teil-Genen (z. B. nur Agouti).</p>
-  </div>
-
-  <div class="container">
-    <div class="card form-card">
-      <div class="parent-input-shell">
-        <div class="parent-switch-row">
-          <h3>Eltern auswählen</h3>
-          <div class="parent-mode-switch" role="tablist" aria-label="Eingabemodus Farben">
-            <button id="colorModeDirectBtn" type="button" class="parent-mode-btn active" onclick="toggleParentInputMode('color','direct')">Direkt</button>
-            <button id="colorModeSavedBtn" type="button" class="parent-mode-btn" onclick="toggleParentInputMode('color','saved')">Gespeichert</button>
-          </div>
-        </div>
-
-        <div id="colorSavedPanel" class="parent-mode-panel" style="display:none;">
-          <label for="colorMareSelect">Stute</label>
-          <select id="colorMareSelect">
-            <option value="">Keine Stute vorhanden</option>
-          </select>
-
-          <label for="colorStallionSelect" style="margin-top:10px;">Hengst</label>
-          <select id="colorStallionSelect">
-            <option value="">Kein Hengst vorhanden</option>
-          </select>
-        </div>
-
-        <div id="colorDirectPanel" class="parent-mode-panel">
-          <div class="raw-label-row">
-            <label for="color_mare_raw">Stute - Rohdaten</label>
-            <button class="btn btn-reset-inline" onclick="resetColorRaw('mare')">↺</button>
-          </div>
-          <textarea id="color_mare_raw" class="raw-mini" placeholder="MDR-Block, Farben-Abschnitt oder Genzeile der Stute..."></textarea>
-
-          <div class="raw-label-row">
-            <label for="color_stallion_raw">Hengst - Rohdaten</label>
-            <button class="btn btn-reset-inline" onclick="resetColorRaw('stallion')">↺</button>
-          </div>
-          <textarea id="color_stallion_raw" class="raw-mini" placeholder="MDR-Block, Farben-Abschnitt oder Genzeile des Hengsts..."></textarea>
-        </div>
-      </div>
-
-      <div class="action-row">
-        <button id="colorAnalyzeBtn" type="button" class="btn" onclick="analyzeColorInput()">Farben berechnen</button>
-      </div>
-    </div>
-
-    <div id="color_result" class="breeding-panel">
-      <p>Noch keine Farbanalyse gestartet.</p>
     </div>
   </div>
 </section>
