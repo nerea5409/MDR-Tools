@@ -2049,6 +2049,12 @@ function canonicalizeGeneToken(token, geneKey) {
         return null;
     }
 
+    if (geneKey === "patn2") {
+        if (raw === "PATN2") return "PATN2";
+        if (raw === "patn2") return "patn2";
+        return null;
+    }
+
     if (geneKey === "tobiano") {
         if (raw === "To") return "To";
         if (raw === "to") return "to";
@@ -2249,6 +2255,10 @@ function parseCompactPair(value, geneKey) {
         match = /^(PATN1|patn1)\/?(PATN1|patn1)$/.exec(compact);
     }
 
+    if (geneKey === "patn2") {
+        match = /^(PATN2|patn2)\/?(PATN2|patn2)$/.exec(compact);
+    }
+
     if (geneKey === "tobiano") {
         match = /^(To|to)\/?(To|to)$/.exec(compact);
     }
@@ -2307,7 +2317,8 @@ function parsePairForGene(text, geneKey) {
         overo: ["overo", "ov"],
         splashed: ["splashed", "spl"],
         leopard: ["appaloosa", "leopard", "lp"],
-        patn1: ["patn1"]
+        patn1: ["patn1"],
+        patn2: ["patn2"]
     };
 
     const compactKeysByGene = {
@@ -2331,7 +2342,8 @@ function parsePairForGene(text, geneKey) {
         overo: ["overo"],
         splashed: ["splashed"],
         leopard: ["appaloosa", "leopard"],
-        patn1: ["patn1"]
+        patn1: ["patn1"],
+        patn2: ["patn2"]
     };
 
     // Priority path for imported MDR format: **Gene**Value.
@@ -2439,6 +2451,7 @@ function extractColorGenes(text) {
         splashed: parsePairForGene(text, "splashed"),
         leopard: parsePairForGene(text, "leopard"),
         patn1: parsePairForGene(text, "patn1"),
+        patn2: parsePairForGene(text, "patn2"),
         grey: parsePairForGene(text, "grey"),
         champagne: parsePairForGene(text, "champagne"),
         sooty: parsePairForGene(text, "sooty"),
@@ -2516,9 +2529,20 @@ function resolvePhenotypeFromState(state) {
     const cKitCount = (allele) => cKitAlleles.filter((candidate) => candidate === allele).length;
     const sabinoCount = cKitCount("Sb");
     const whiteCount = cKitCount("W");
+    const overoCount = genotypeAlleleCount(state.overo, "Ov");
     if (whiteCount === 2) return "Dominant White (letal)";
+    if (overoCount === 2) return "Overo (letal)";
 
     const base = resolveBaseFromState(state);
+    const baseKey = base === "Chestnut"
+        ? "chestnut"
+        : base === "Bay" || base === "Wildbay"
+            ? "bay"
+            : base === "Sealbrown"
+                ? "sealbrown"
+                : base === "Black"
+                    ? "black"
+                    : null;
 
     const creamCount = genotypeAlleleCount(state.creamPearl, "Cr");
     const pearlCount = genotypeAlleleCount(state.creamPearl, "pl");
@@ -2526,106 +2550,102 @@ function resolvePhenotypeFromState(state) {
     const hasSilver = genotypeHasAllele(state.silver, "Z");
     const hasPearl = pearlCount === 2;
     const hasPangare = genotypeHasAllele(state.pangare, "Pa");
+    const hasChampagne = genotypeHasAllele(state.champagne, "Ch");
+    const hasSooty = genotypeHasAllele(state.sooty, "Sty");
     const hasRoan = cKitCount("Rn") > 0;
     const hasTobiano = cKitCount("To") > 0;
     const hasSabino = sabinoCount > 0;
     const hasWhite = whiteCount > 0;
-    const hasOvero = genotypeHasAllele(state.overo, "Ov");
     const hasSplashed = genotypeHasAllele(state.splashed, "Spl");
     const hasLeopard = genotypeHasAllele(state.leopard, "Lp");
     const hasPATN1 = genotypeHasAllele(state.patn1, "PATN1");
+    const hasPATN2 = genotypeHasAllele(state.patn2, "PATN2");
+    const leopardCount = genotypeAlleleCount(state.leopard, "Lp");
     const hasRabicano = genotypeHasAllele(state.rabicano, "Rb");
     const hasGrey = genotypeHasAllele(state.grey, "G");
-    const hasChampagne = genotypeHasAllele(state.champagne, "Ch");
     const isFlaxen = state.flaxen === "f/f";
-    const hasSooty = genotypeHasAllele(state.sooty, "Sty");
 
+    const colors = {
+        chestnut: {
+            champagne: "Gold Champagne", cream1: "Palomino", cream2: "Cremello", pearl: "Apricot", dun: "Red Dun",
+            dunCream1: "Dunalino", dunCream2: "Cremello Dun", dunChampagne: "Gold Dun", dunPearl: "Apricot Dun",
+            champagnePearl: "Gold Pearl", champagneCream1: "Gold Cream", champagneCream2: "Cremello Champagne",
+            dunChampagneCream1: "Gold Dun Cream", dunChampagnePearl: "Gold Dun Pearl"
+        },
+        bay: {
+            champagne: "Amber Champagne", cream1: "Buckskin", cream2: "Perlino", pearl: "Pearl Bay", dun: "Classic Dun",
+            dunCream1: "(Wild) Dunskin", dunCream2: "Perlino Dun", dunChampagne: "Amber Dun", dunPearl: "Pearl Bay Dun",
+            champagnePearl: "Amber Pearl", champagneCream1: "Amber Cream", champagneCream2: "Perlino Champagne",
+            dunChampagneCream1: "Amber Dun Cream", dunChampagnePearl: "Amber Dun Pearl"
+        },
+        sealbrown: {
+            champagne: "Sable Champagne", cream1: "Smoky Brown", cream2: "Sealbrown Cream", pearl: "Pearl Brown", dun: "Brown Dun",
+            dunCream1: "Smoky Brown Dun", dunCream2: "Sealbrown Cream Dun", dunChampagne: "Sable Dun", dunPearl: "Pearl Brown Dun",
+            champagnePearl: "Sable Pearl", champagneCream1: "Sable Cream", champagneCream2: "Sealbrown Cream Champagne",
+            dunChampagneCream1: "Sable Dun Cream", dunChampagnePearl: "Sable Dun Pearl"
+        },
+        black: {
+            champagne: "Classic Champagne", cream1: "Smoky Black", cream2: "Smoky Cream", pearl: "Pearl Black", dun: "Grulla",
+            dunCream1: "Smoky Grulla", dunCream2: "Smoky Cream Dun", dunChampagne: "Classic Dun", dunPearl: "Pearl Black Dun",
+            champagnePearl: "Classic Pearl", champagneCream1: "Classic Cream", champagneCream2: "Smoky Cream Champagne",
+            dunChampagneCream1: "Classic Dun Cream", dunChampagnePearl: "Classic Dun Pearl"
+        }
+    };
+
+    const names = colors[baseKey];
     let label = base;
 
-    if (hasChampagne) {
-        if (base === "Chestnut") label = "Gold Champagne";
-        else if (base === "Bay" || base === "Wildbay") label = "Amber Champagne";
-        else if (base === "Sealbrown") label = "Sable Champagne";
-        else if (base === "Black") label = "Classic Champagne";
-        else label = `${base} + Champagne`;
+    if (names) {
+        if (hasDun && hasChampagne && hasPearl) label = names.dunChampagnePearl;
+        else if (hasDun && hasChampagne && creamCount === 1) label = names.dunChampagneCream1;
+        else if (hasDun && hasChampagne && creamCount === 2) label = `${names.dunCream2} Champagne`;
+        else if (hasDun && hasPearl) label = names.dunPearl;
+        else if (hasDun && creamCount === 1) label = names.dunCream1;
+        else if (hasDun && creamCount === 2) label = names.dunCream2;
+        else if (hasDun && hasChampagne) label = names.dunChampagne;
+        else if (hasChampagne && hasPearl) label = names.champagnePearl;
+        else if (hasChampagne && creamCount === 1) label = names.champagneCream1;
+        else if (hasChampagne && creamCount === 2) label = names.champagneCream2;
+        else if (hasChampagne) label = names.champagne;
+        else if (hasPearl) label = names.pearl;
+        else if (creamCount === 1) label = names.cream1;
+        else if (creamCount === 2) label = names.cream2;
+        else if (hasDun) label = names.dun;
     }
 
-    if (creamCount === 1) {
-        if (base === "Chestnut") label = "Palomino";
-        else if (base === "Bay" || base === "Wildbay") label = "Buckskin";
-        else if (base === "Sealbrown") label = "Smoky Brown";
-        else if (base === "Black") label = "Smoky Black";
-        else label = `${label} + Cream`;
-    }
-
-    if (creamCount === 2) {
-        if (base === "Chestnut") label = "Cremello";
-        else if (base === "Bay" || base === "Wildbay") label = "Perlino";
-        else if (base === "Sealbrown") label = "Sealbrown Cream";
-        else if (base === "Black") label = "Smoky Cream";
-        else label = `${label} + Double Cream`;
-    }
-
-    if (hasDun) {
-        if (label === "Chestnut") label = "Red Dun";
-        else if (label === "Bay" || label === "Wildbay") label = "Classic Dun";
-        else if (label === "Sealbrown") label = "Brown Dun";
-        else if (label === "Black") label = "Grulla";
-        else label = `${label} + Dun`;
-    }
-
-    if (hasSilver && !/Chestnut|Palomino|Cremello|Gold Champagne/.test(label)) {
-        label = `Silver ${label}`;
-    }
-
-    if (isFlaxen && (base === "Chestnut" || label === "Chestnut")) {
-        label = "Flaxen Chestnut";
-    }
-
-    if (hasPearl) {
-        if (base === "Chestnut") label = "Apricot";
-        else if (base === "Bay" || base === "Wildbay") label = "Pearl Bay";
-        else if (base === "Sealbrown") label = "Pearl Brown";
-        else if (base === "Black") label = "Pearl Black";
-        else label = `${label} + Pearl`;
-    }
-
-    if (hasSooty) {
-        label = `${label} (Sooty)`;
-    }
-
-    if (hasPangare) {
-        label = `${label} + Pangare`;
-    }
-
-    if (hasRoan) {
-        label = `${label} Roan`;
-    }
-
-    if (hasSabino) {
-        label = `${label} ${sabinoCount === 2 ? "Sabino reinerbig, fast weiß" : "Sabino"}`;
+    if (hasSilver && baseKey && baseKey !== "chestnut") label = `Silver ${label}`;
+    if (isFlaxen && baseKey === "chestnut") label = `Flaxen ${label}`;
+    if (hasSooty && baseKey && baseKey !== "black") label = `${label} (Sooty)`;
+    if (hasPangare && baseKey && baseKey !== "black") label = `${label} + Pangare`;
+    if (hasRoan) label = `${label} Roan`;
+    if (hasSabino) label = `${label} ${sabinoCount === 2 ? "Sabino reinerbig, fast weiß" : "Sabino"}`;
+    if (hasSplashed) {
+        const splashedCount = genotypeAlleleCount(state.splashed, "Spl");
+        label = `${label} (Splashed${splashedCount === 2 ? ", homozygot stärker" : ""})`;
     }
 
     const pinto = [];
     if (hasTobiano) pinto.push("Tobiano");
     if (hasWhite) pinto.push("Dominant White");
-    if (hasOvero) pinto.push("Overo");
-    if (hasSplashed) pinto.push("Splashed");
+    if (overoCount > 0) pinto.push("Overo");
     if (pinto.length) {
         label = `${label} (${pinto.join(" + ")})`;
     }
 
     if (hasLeopard) {
-        label = `${label} (${hasPATN1 ? "Leopard/PATN1" : "Appaloosa"})`;
+        const pattern = hasPATN1
+            ? (leopardCount === 2 ? "Few Spot" : "Leopard")
+            : hasPATN2
+                ? (leopardCount === 2 ? "Snowcap" : "Blanket")
+                : "Varnish Roan";
+        label = `${label} (${pattern})`;
     }
 
     if (hasRabicano) {
         label = `${label} (Rabicano)`;
     }
 
-    if (hasGrey) {
-        label = `${label} (Grey)`;
-    }
+    if (hasGrey) label = `${label} (Grey)`;
 
     return label;
 }
@@ -2670,6 +2690,7 @@ function buildColorGeneDistributions(mareGenes, stallionGenes) {
         splashed: genotypeDistribution(mareGenes.splashed, stallionGenes.splashed),
         leopard: genotypeDistribution(mareGenes.leopard, stallionGenes.leopard),
         patn1: genotypeDistribution(mareGenes.patn1, stallionGenes.patn1),
+        patn2: genotypeDistribution(mareGenes.patn2, stallionGenes.patn2),
         grey: genotypeDistribution(mareGenes.grey, stallionGenes.grey),
         champagne: genotypeDistribution(mareGenes.champagne, stallionGenes.champagne),
         flaxen: genotypeDistribution(mareGenes.flaxen, stallionGenes.flaxen),
@@ -2740,6 +2761,7 @@ function renderColorAnalysisReport(mareName, stallionName, mareText, stallionTex
         splashed: "Splashed",
         leopard: "Appaloosa/Leopard",
         patn1: "PATN1",
+        patn2: "PATN2",
         sooty: "Sooty",
         flaxen: "Flaxen"
     };
@@ -2793,6 +2815,7 @@ function renderColorAnalysisReport(mareName, stallionName, mareText, stallionTex
 
                 <section class="color-card color-card-strong">
                     <h4>Alle berechneten Farb-Möglichkeiten</h4>
+                    <p class="color-status">Grey-Fohlen kommen in ihrer Grundfarbe zur Welt und schimmeln laut Spiel ab dem 3. Geburtstag aus. Die genaue Vererbung der Fellschattierungen ist nicht offengelegt und wird daher nicht berechnet.</p>
                     <div class="color-list">
                         ${phenotypeRows || `<div class="color-row"><span class="color-row-label">Unklar</span><span class="color-row-value">Zu wenige Gene erkannt</span></div>`}
                     </div>
