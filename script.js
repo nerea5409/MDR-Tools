@@ -1817,6 +1817,7 @@ function renderPairingSearch() {
 
     ranked.sort((a, b) => {
         if (objective === "exterior") return b.score - a.score || a.tieScore - b.tieScore;
+        if (objective === "interior") return a.score - b.score || a.mare.name.localeCompare(b.mare.name, "de", { sensitivity: "base" });
         return b.score - a.score || a.mare.name.localeCompare(b.mare.name, "de", { sensitivity: "base" });
     });
 
