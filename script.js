@@ -1740,7 +1740,15 @@ function getPairColorPhenotypes(mare, stallion) {
     if (!alwaysChestnut && (!mareGenes.agouti || !stallionGenes.agouti)) return null;
 
     const distributions = buildColorGeneDistributions(mareGenes, stallionGenes);
-    return calculateColorPhenotypeProbabilities(distributions);
+    const detailedPhenotypes = calculateColorPhenotypeProbabilities(distributions);
+    const pairingPhenotypes = new Map();
+
+    detailedPhenotypes.forEach((probability, phenotype) => {
+        const rankingLabel = /\(Grey\)$/.test(phenotype) ? "Grey" : phenotype;
+        pairingPhenotypes.set(rankingLabel, (pairingPhenotypes.get(rankingLabel) || 0) + probability);
+    });
+
+    return pairingPhenotypes;
 }
 
 function renderPairingSearch() {
