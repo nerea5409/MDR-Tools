@@ -63,6 +63,7 @@
   <button onclick="zeigeTool('pferde'); toggleMenu()">Import</button>
   <button onclick="zeigeTool('datenbank'); toggleMenu()">Datenbank</button>
   <button onclick="zeigeTool('zucht'); toggleMenu()">Zucht</button>
+  <button onclick="zeigeTool('statistiken'); toggleMenu()">Statistiken</button>
   <button onclick="zeigeTool('turnier'); toggleMenu()">Turnier</button>
   <button onclick="zeigeTool('exterieur'); toggleMenu()">Exterieur</button>
   <button onclick="zeigeTool('farben'); toggleMenu()">Farben</button>
@@ -202,8 +203,6 @@
 
   <div class="container">
 
-    <div id="db_comparison" class="db-comparison-card"></div>
-
     <div class="card">
       <div class="parent-input-shell">
         <div class="parent-switch-row">
@@ -250,6 +249,18 @@
       <p>Simulation starten, um Ergebnis zu sehen.</p>
     </div>
 
+  </div>
+</section>
+
+<!-- STATISTIKEN -->
+<section id="statistiken" class="tool">
+  <div class="hero">
+    <h2>📊 Statistiken</h2>
+    <p>Bestandsübersicht und durchschnittliche Werte der gespeicherten Pferde.</p>
+  </div>
+
+  <div class="container">
+    <div id="statisticsContent" class="db-comparison-card"></div>
   </div>
 </section>
 

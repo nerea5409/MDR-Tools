@@ -89,6 +89,10 @@ function zeigeTool(name) {
         renderDatabase();
     }
 
+    if (name === "statistiken") {
+        renderStatistics();
+    }
+
     if (name === "zucht" || name === "farben") {
         populateBreedingDropdowns();
     }
@@ -1384,7 +1388,7 @@ function countGeneDistribution(genes) {
 
 function getExteriorScoreStyle(score) {
     const styles = {
-        1: { border: "rgba(27, 94, 32, 0.45)", dot: "#1b5e20" },
+        1: { border: "rgba(0, 121, 138, 0.55)", dot: "#007c83" },
         2: { border: "rgba(56, 142, 60, 0.45)", dot: "#388e3c" },
         3: { border: "rgba(207, 201, 21, 0.48)", dot: "#f2e14c" },
         4: { border: "rgba(255, 81, 0, 0.45)", dot: "#ff7300" },
@@ -1685,6 +1689,14 @@ function canonicalizeGeneToken(token, geneKey) {
         return null;
     }
 
+    if (geneKey === "creamPearl") {
+        if (raw === "Cr") return "Cr";
+        if (raw === "cr") return "cr";
+        if (raw === "Pl") return "Pl";
+        if (raw === "pl") return "pl";
+        return null;
+    }
+
     if (geneKey === "dun") {
         if (raw === "D") return "D";
         if (raw === "d") return "d";
@@ -1787,6 +1799,12 @@ function canonicalizeGeneToken(token, geneKey) {
         return null;
     }
 
+    if (geneKey === "cKit") {
+        if (["To", "Sb", "W", "Rn"].includes(raw)) return raw;
+        if (["to", "sb", "w", "rn", "+", "WT", "wt"].includes(raw)) return "+";
+        return null;
+    }
+
     return null;
 }
 
@@ -1814,6 +1832,7 @@ function extractCompactGeneValues(text) {
         { key: "cream", label: "Cream" },
         { key: "champagne", label: "Champagne" },
         { key: "grey", label: "Grey" },
+        { key: "ckit", label: "cKIT" },
         { key: "kit", label: "KIT" },
         { key: "silver", label: "Silver" },
         { key: "pearl", label: "Pearl" },
@@ -1822,6 +1841,7 @@ function extractCompactGeneValues(text) {
         { key: "roan", label: "Roan" },
         { key: "tobiano", label: "Tobiano" },
         { key: "sabino", label: "Sabino" },
+        { key: "dominantwhite", label: "Dominant White" },
         { key: "white", label: "White" },
         { key: "overo", label: "Overo" },
         { key: "splashed", label: "Splashed" },
@@ -1854,7 +1874,7 @@ function extractCompactGeneValues(text) {
             .replace(/^[^A-Za-z0-9]+/, "")
             .trim();
 
-        if (cleaned) {
+        if (cleaned && !(key in map)) {
             map[key] = cleaned;
         }
     }
@@ -1865,6 +1885,18 @@ function extractCompactGeneValues(text) {
 function isGeneUntested(value) {
     const n = normalizeColorToken(value);
     return !n || n.includes("nichtgetestet") || n === "-";
+}
+
+function parseCKitCode(value) {
+    const compact = String(value || "").replace(/\s+/g, "").toUpperCase();
+    if (compact.length !== 4) return null;
+
+    const alleleCodes = { TO: "To", SB: "Sb", DW: "W", W0: "W", RN: "Rn", "00": "+" };
+    const firstCode = compact.slice(0, 2);
+    const secondCode = compact.slice(2, 4);
+    if (!(firstCode in alleleCodes) || !(secondCode in alleleCodes)) return null;
+
+    return [alleleCodes[firstCode], alleleCodes[secondCode]];
 }
 
 function parseCompactPair(value, geneKey) {
@@ -1897,6 +1929,10 @@ function parseCompactPair(value, geneKey) {
 
     if (geneKey === "cream") {
         match = /^(Cr|cr)\/?(Cr|cr)$/.exec(compact);
+    }
+
+    if (geneKey === "creamPearl") {
+        match = /^(Cr|cr|Pl|pl)\/?(Cr|cr|Pl|pl)$/.exec(compact);
     }
 
     if (geneKey === "champagne") {
@@ -1955,6 +1991,12 @@ function parseCompactPair(value, geneKey) {
         match = /^(Rn|rn)\/?(Rn|rn)$/.exec(compact);
     }
 
+    if (geneKey === "cKit") {
+        const codedPair = parseCKitCode(compact);
+        if (codedPair) return codedPair;
+        match = /^(To|to|Sb|sb|W|w|Rn|rn|\+)\/?(To|to|Sb|sb|W|w|Rn|rn|\+)$/.exec(compact);
+    }
+
     if (!match) return null;
 
     const a = canonicalizeGeneToken(match[1], geneKey);
@@ -1974,6 +2016,7 @@ function parsePairForGene(text, geneKey) {
         extension: ["extension", "ext", "e/e", "e ", " e"],
         agouti: ["agouti", "a1", "ap", "at", "a0"],
         cream: ["cream", "cr"],
+        creamPearl: ["cream", "pearl"],
         dun: ["dun", "falbe", "dilution"],
         silver: ["silver", "windfarben", "z"],
         pearl: ["pearl", "pl"],
@@ -1997,6 +2040,7 @@ function parsePairForGene(text, geneKey) {
         extension: ["extension"],
         agouti: ["agouti"],
         cream: ["cream"],
+        creamPearl: ["cream", "pearl"],
         dun: ["dun"],
         silver: ["silver"],
         pearl: ["pearl"],
@@ -2067,20 +2111,56 @@ function parsePairForGene(text, geneKey) {
     return null;
 }
 
+function parseCKitLocus(text) {
+    const compactGenes = extractCompactGeneValues(text);
+    for (const key of ["ckit", "kit"]) {
+        const explicitPair = parseCompactPair(compactGenes[key], "cKit");
+        if (explicitPair) return explicitPair;
+    }
+
+    const geneKeys = ["tobiano", "sabino", "dominantwhite", "white", "roan"];
+    const alleleCopies = new Map();
+    let foundCkitData = false;
+
+    for (const key of geneKeys) {
+        if (!(key in compactGenes)) continue;
+        const pair = parseCompactPair(compactGenes[key], "cKit");
+        if (!pair) continue;
+        foundCkitData = true;
+
+        const copiesInPair = new Map();
+        for (const allele of pair) {
+            if (allele === "+") continue;
+            copiesInPair.set(allele, (copiesInPair.get(allele) || 0) + 1);
+        }
+
+        for (const [allele, copies] of copiesInPair) {
+            alleleCopies.set(allele, Math.max(alleleCopies.get(allele) || 0, copies));
+        }
+    }
+
+    if (!foundCkitData) return null;
+
+    const alleles = [];
+    for (const [allele, copies] of alleleCopies) {
+        for (let copy = 0; copy < copies; copy++) alleles.push(allele);
+    }
+    if (alleles.length > 2) return null;
+    while (alleles.length < 2) alleles.push("+");
+
+    return alleles;
+}
+
 function extractColorGenes(text) {
     return {
         extension: parsePairForGene(text, "extension"),
         agouti: parsePairForGene(text, "agouti"),
-        cream: parsePairForGene(text, "cream"),
+        creamPearl: parsePairForGene(text, "creamPearl"),
         dun: parsePairForGene(text, "dun"),
         silver: parsePairForGene(text, "silver"),
-        pearl: parsePairForGene(text, "pearl"),
         pangare: parsePairForGene(text, "pangare"),
         rabicano: parsePairForGene(text, "rabicano"),
-        roan: parsePairForGene(text, "roan"),
-        tobiano: parsePairForGene(text, "tobiano"),
-        sabino: parsePairForGene(text, "sabino"),
-        white: parsePairForGene(text, "white"),
+        cKit: parseCKitLocus(text),
         overo: parsePairForGene(text, "overo"),
         splashed: parsePairForGene(text, "splashed"),
         leopard: parsePairForGene(text, "leopard"),
@@ -2118,6 +2198,21 @@ function genotypeAlleleCount(genotype, allele) {
     return String(genotype || "").split("/").filter((a) => a === allele).length;
 }
 
+function formatCKitGenotype(genotype) {
+    const alleles = String(genotype || "").split("/");
+    if (alleles.length !== 2) return genotype;
+    if (alleles.every((allele) => allele === "+")) return "+/+";
+
+    const wildtypeByVariant = { To: "to", Sb: "sb", W: "w", Rn: "rn" };
+    const variant = alleles.find((allele) => allele !== "+");
+    if (alleles.includes("+") && wildtypeByVariant[variant]) {
+        return `${variant}/${wildtypeByVariant[variant]}`;
+    }
+
+    const order = { To: 0, Sb: 1, W: 2, Rn: 3 };
+    return alleles.sort((a, b) => order[a] - order[b]).join("/");
+}
+
 function resolveBaseFromState(state) {
     const ext = state.extension;
     const ago = state.agouti;
@@ -2143,17 +2238,24 @@ function resolveBaseFromState(state) {
 }
 
 function resolvePhenotypeFromState(state) {
+    const cKitAlleles = String(state.cKit || "").split("/");
+    const cKitCount = (allele) => cKitAlleles.filter((candidate) => candidate === allele).length;
+    const sabinoCount = cKitCount("Sb");
+    const whiteCount = cKitCount("W");
+    if (whiteCount === 2) return "Dominant White (letal)";
+
     const base = resolveBaseFromState(state);
 
-    const creamCount = genotypeAlleleCount(state.cream, "Cr");
+    const creamCount = genotypeAlleleCount(state.creamPearl, "Cr");
+    const pearlCount = genotypeAlleleCount(state.creamPearl, "pl");
     const hasDun = genotypeHasAllele(state.dun, "D");
     const hasSilver = genotypeHasAllele(state.silver, "Z");
-    const hasPearl = genotypeAlleleCount(state.pearl, "pl") === 2;
+    const hasPearl = pearlCount === 2;
     const hasPangare = genotypeHasAllele(state.pangare, "Pa");
-    const hasRoan = genotypeHasAllele(state.roan, "Rn");
-    const hasTobiano = genotypeHasAllele(state.tobiano, "To");
-    const hasSabino = genotypeHasAllele(state.sabino, "Sb");
-    const hasWhite = genotypeHasAllele(state.white, "W");
+    const hasRoan = cKitCount("Rn") > 0;
+    const hasTobiano = cKitCount("To") > 0;
+    const hasSabino = sabinoCount > 0;
+    const hasWhite = whiteCount > 0;
     const hasOvero = genotypeHasAllele(state.overo, "Ov");
     const hasSplashed = genotypeHasAllele(state.splashed, "Spl");
     const hasLeopard = genotypeHasAllele(state.leopard, "Lp");
@@ -2206,12 +2308,16 @@ function resolvePhenotypeFromState(state) {
         label = "Flaxen Chestnut";
     }
 
-    if (hasSooty) {
-        label = `${label} (Sooty)`;
+    if (hasPearl) {
+        if (base === "Chestnut") label = "Apricot";
+        else if (base === "Bay" || base === "Wildbay") label = "Pearl Bay";
+        else if (base === "Sealbrown") label = "Pearl Brown";
+        else if (base === "Black") label = "Pearl Black";
+        else label = `${label} + Pearl`;
     }
 
-    if (hasPearl) {
-        label = `${label} + Pearl`;
+    if (hasSooty) {
+        label = `${label} (Sooty)`;
     }
 
     if (hasPangare) {
@@ -2224,7 +2330,7 @@ function resolvePhenotypeFromState(state) {
 
     const pinto = [];
     if (hasTobiano) pinto.push("Tobiano");
-    if (hasSabino) pinto.push("Sabino");
+    if (hasSabino) pinto.push(sabinoCount === 2 ? "Sabino reinerbig, fast weiß" : "Sabino");
     if (hasWhite) pinto.push("Dominant White");
     if (hasOvero) pinto.push("Overo");
     if (hasSplashed) pinto.push("Splashed");
@@ -2280,16 +2386,12 @@ function renderColorAnalysisReport(mareName, stallionName, mareText, stallionTex
     const geneDistributions = {
         extension: genotypeDistribution(mareGenes.extension, stallionGenes.extension),
         agouti: genotypeDistribution(mareGenes.agouti, stallionGenes.agouti),
-        cream: genotypeDistribution(mareGenes.cream, stallionGenes.cream),
+        creamPearl: genotypeDistribution(mareGenes.creamPearl, stallionGenes.creamPearl),
         dun: genotypeDistribution(mareGenes.dun, stallionGenes.dun),
         silver: genotypeDistribution(mareGenes.silver, stallionGenes.silver),
-        pearl: genotypeDistribution(mareGenes.pearl, stallionGenes.pearl),
         pangare: genotypeDistribution(mareGenes.pangare, stallionGenes.pangare),
         rabicano: genotypeDistribution(mareGenes.rabicano, stallionGenes.rabicano),
-        roan: genotypeDistribution(mareGenes.roan, stallionGenes.roan),
-        tobiano: genotypeDistribution(mareGenes.tobiano, stallionGenes.tobiano),
-        sabino: genotypeDistribution(mareGenes.sabino, stallionGenes.sabino),
-        white: genotypeDistribution(mareGenes.white, stallionGenes.white),
+        cKit: genotypeDistribution(mareGenes.cKit, stallionGenes.cKit),
         overo: genotypeDistribution(mareGenes.overo, stallionGenes.overo),
         splashed: genotypeDistribution(mareGenes.splashed, stallionGenes.splashed),
         leopard: genotypeDistribution(mareGenes.leopard, stallionGenes.leopard),
@@ -2313,7 +2415,7 @@ function renderColorAnalysisReport(mareName, stallionName, mareText, stallionTex
         .map(([label, prob]) => `<div class="color-row"><span class="color-row-label">${escapeHtml(label)}</span><span class="color-row-value">${formatPercent(prob)}</span></div>`)
         .join("");
 
-    const renderDist = (title, dist) => {
+    const renderDist = (title, dist, formatGenotype = (genotype) => genotype) => {
         if (!dist) return "";
         const dominanceWeight = (genotype) => (genotype.match(/[A-Z]/g) || []).length;
         const text = dist
@@ -2326,7 +2428,7 @@ function renderColorAnalysisReport(mareName, stallionName, mareText, stallionTex
 
                 return a.genotype.localeCompare(b.genotype, "de", { sensitivity: "base" });
             })
-            .map((x) => `<span class="color-dist-item">${escapeHtml(x.genotype)} (${formatPercent(x.prob)})</span>`)
+            .map((x) => `<span class="color-dist-item">${escapeHtml(formatGenotype(x.genotype))} (${formatPercent(x.prob)})</span>`)
             .join("");
 
         return `
@@ -2341,17 +2443,13 @@ function renderColorAnalysisReport(mareName, stallionName, mareText, stallionTex
         extension: "Extension",
         agouti: "Agouti",
         dun: "Dun",
-        cream: "Cream",
+        creamPearl: "Cream/Pearl",
         champagne: "Champagne",
         grey: "Grey",
         silver: "Silver",
-        pearl: "Pearl",
         pangare: "Pangare",
         rabicano: "Rabicano",
-        roan: "Roan",
-        tobiano: "Tobiano",
-        sabino: "Sabino",
-        white: "White",
+        cKit: "KIT (Tobiano/Sabino/White/Roan)",
         overo: "Overo",
         splashed: "Splashed",
         leopard: "Appaloosa/Leopard",
@@ -2360,21 +2458,24 @@ function renderColorAnalysisReport(mareName, stallionName, mareText, stallionTex
         flaxen: "Flaxen"
     };
 
-    const formatPair = (pair) => pair ? pair.join("/") : "nicht erkannt";
+    const formatPair = (pair, key) => {
+        if (!pair) return "nicht erkannt";
+        return key === "cKit" ? formatCKitGenotype(pair.join("/")) : pair.join("/");
+    };
 
     const parentBreakdownRows = Object.keys(geneLabels)
         .filter((key) => mareGenes[key] || stallionGenes[key])
         .map((key) => `
             <div class="color-parent-row">
                 <span class="color-parent-gene">${geneLabels[key]}</span>
-                <span class="color-parent-value">${escapeHtml(formatPair(mareGenes[key]))}</span>
-                <span class="color-parent-value">${escapeHtml(formatPair(stallionGenes[key]))}</span>
+                <span class="color-parent-value">${escapeHtml(formatPair(mareGenes[key], key))}</span>
+                <span class="color-parent-value">${escapeHtml(formatPair(stallionGenes[key], key))}</span>
             </div>
         `)
         .join("");
 
     const distributionRows = Object.keys(geneLabels)
-        .map((key) => renderDist(geneLabels[key], geneDistributions[key]))
+        .map((key) => renderDist(geneLabels[key], geneDistributions[key], key === "cKit" ? formatCKitGenotype : undefined))
         .filter(Boolean)
         .join("");
 
@@ -2838,6 +2939,138 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
 }
 
 
+function renderStatistics(ownerValue) {
+    const container = document.getElementById("statisticsContent");
+    if (!container) return;
+
+    const owners = [...new Set(pferde.map((horse) => normalizeOwner(horse.besitzer)))]
+        .sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
+    const requestedOwner = ownerValue ?? document.getElementById("statisticsOwnerSelect")?.value;
+    const winterFoxOwner = owners.find((owner) => owner.localeCompare("WinterFox", "de", { sensitivity: "base" }) === 0);
+    const selectedOwner = requestedOwner === "__all__" || owners.includes(requestedOwner)
+        ? requestedOwner
+        : (winterFoxOwner || "__all__");
+    const visibleHorses = selectedOwner === "__all__"
+        ? pferde
+        : pferde.filter((horse) => normalizeOwner(horse.besitzer) === selectedOwner);
+
+    const groups = [
+        { label: "Stuten", horses: visibleHorses.filter((horse) => horse.geschlecht === "Stute") },
+        { label: "Hengste", horses: visibleHorses.filter((horse) => horse.geschlecht === "Hengst") },
+        { label: "Gesamt", horses: visibleHorses, className: "statistics-total-row" }
+    ];
+
+    const average = (horses, getValue) => {
+        const values = horses
+            .map(getValue)
+            .filter((value) => Number.isFinite(value));
+        if (!values.length) return "—";
+        return (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2);
+    };
+
+    const getGp = (horse) => {
+        if (horse.gp === null || horse.gp === undefined || horse.gp === "") return null;
+        const value = Number(horse.gp);
+        return Number.isFinite(value) ? value : null;
+    };
+    const getInterior = (horse) => {
+        const value = Number(calculateInteriorAverage(horse.interieur));
+        return value > 0 ? value : null;
+    };
+    const getExterior = (horse) => {
+        const value = Number(calculateExteriorAverage(horse.exterieur));
+        return value > 0 ? value : null;
+    };
+
+    const westernDisciplines = TOURNAMENT_CATEGORIES.Western;
+    const lkResults = new Map();
+    visibleHorses.forEach((horse) => {
+        westernDisciplines.forEach((discipline) => {
+            const level = calculateDisciplineLevel(horse, discipline);
+            const value = calculateTournamentValue(horse, discipline);
+            if (!level || !Number.isFinite(value)) return;
+
+            if (!lkResults.has(level)) {
+                lkResults.set(level, { values: [], disciplines: new Map() });
+            }
+            const result = lkResults.get(level);
+            result.values.push(value);
+            if (!result.disciplines.has(discipline)) result.disciplines.set(discipline, []);
+            result.disciplines.get(discipline).push(value);
+        });
+    });
+
+    const formatTournamentAverage = (values) => values?.length
+        ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)
+        : "—";
+    const lkRows = Array.from(lkResults.entries())
+        .sort(([levelA], [levelB]) => Number(levelA.slice(2)) - Number(levelB.slice(2)))
+        .map(([level, result]) => `
+            <tr>
+                <td><b>${escapeHtml(level)}</b></td>
+                <td>${result.values.length}</td>
+                <td>${formatTournamentAverage(result.values)}</td>
+                ${westernDisciplines.map((discipline) => `<td>${formatTournamentAverage(result.disciplines.get(discipline))}</td>`).join("")}
+            </tr>
+        `).join("");
+
+    container.innerHTML = `
+        <div class="turnier-overview-toolbar">
+            <label for="statisticsOwnerSelect">Besitzer</label>
+            <select id="statisticsOwnerSelect" onchange="renderStatistics(this.value)">
+                <option value="__all__" ${selectedOwner === "__all__" ? "selected" : ""}>Alle Besitzer</option>
+                ${owners.map((owner) => `<option value="${escapeHtml(owner)}" ${owner === selectedOwner ? "selected" : ""}>${escapeHtml(owner)}</option>`).join("")}
+            </select>
+        </div>
+
+        <h3>Pferdebestand${selectedOwner !== "__all__" ? ` · ${escapeHtml(selectedOwner)}` : ""}</h3>
+        <div class="db-comparison-table-wrap">
+            <table class="db-comparison-table statistics-table">
+                <thead>
+                    <tr>
+                        <th>Gruppe</th>
+                        <th>Anzahl</th>
+                        <th>Ø GP</th>
+                        <th>Ø Interieur</th>
+                        <th>Ø Exterieur</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${groups.map(({ label, horses, className = "" }) => `
+                        <tr class="${className}">
+                            <td><b>${label}</b></td>
+                            <td>${horses.length}</td>
+                            <td>${average(horses, getGp)}</td>
+                            <td>${average(horses, getInterior)}</td>
+                            <td>${average(horses, getExterior)}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="statistics-western-section">
+            <h3>Western-Turnierwerte nach LK</h3>
+            <p>Durchschnittswerte der vorhandenen Western-Disziplinen, gruppiert nach berechneter Leistungsklasse.</p>
+            <div class="db-comparison-table-wrap">
+                <table class="db-comparison-table statistics-table">
+                    <thead>
+                        <tr>
+                            <th>LK</th>
+                            <th>Werte</th>
+                            <th>Western Ø</th>
+                            ${westernDisciplines.map((discipline) => `<th>${escapeHtml(discipline)}</th>`).join("")}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${lkRows || `<tr><td colspan="${westernDisciplines.length + 3}" class="db-comparison-empty">Für diesen Besitzer liegen keine Western-Turnierwerte mit LK vor.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
 /* =========================
    📊 RENDER
 ========================= */
@@ -2941,8 +3174,6 @@ function renderDatabase() {
             Number(calculateExteriorAverage(b.exterieur))
         );
     }
-
-    renderOwnerTurnierComparison(pferde, "db_comparison");
 
     sorted.forEach((p) => {
 
@@ -3086,6 +3317,21 @@ function showStallionDetailFromMare(mareIndex, stallionIndex) {
     });
 }
 
+function showStallionDetailFromStallionView(mareIndex, stallionIndex) {
+    const mare = pferde[mareIndex];
+    const stallion = pferde[stallionIndex];
+    if (!mare || !stallion) {
+        renderDatabase();
+        return;
+    }
+
+    showFoalGeneOverview(mare, stallion, {
+        backAction: `showStallionViewByRefresh(${stallionIndex})`,
+        backLabel: "Zurück zum Hengst",
+        detailHorse: mare
+    });
+}
+
 function showFoalGeneOverview(mare, stallion, options = {}) {
 
     document.getElementById("db_sortbar").style.display = "none";
@@ -3098,8 +3344,9 @@ function showFoalGeneOverview(mare, stallion, options = {}) {
     const container = document.getElementById("db_liste");
     const backAction = options.backAction || "renderDatabase()";
     const backLabel = options.backLabel || "Zurück";
-    const intAvg = calculateInteriorAverage(stallion.interieur || {});
-    const extAvg = calculateExteriorAverage(stallion.exterieur || {});
+    const detailHorse = options.detailHorse || stallion;
+    const intAvg = calculateInteriorAverage(detailHorse.interieur || {});
+    const extAvg = calculateExteriorAverage(detailHorse.exterieur || {});
 
     const range = calculateExteriorRange(mare, stallion);
     const inbreeding = getInbreedingRisk(mare, stallion);
@@ -3146,8 +3393,8 @@ function showFoalGeneOverview(mare, stallion, options = {}) {
             <button class="btn back-btn" onclick="${backAction}">${backLabel}</button>
 
             <div class="detail-title-block">
-                <h2>${escapeHtml(stallion.name)}</h2>
-                <p class="detail-meta">GP ${stallion.gp || 0} · Int Ø ${intAvg} · Ext Ø ${extAvg}</p>
+                <h2>${escapeHtml(detailHorse.name)}</h2>
+                <p class="detail-meta">GP ${detailHorse.gp || 0} · Int Ø ${intAvg} · Ext Ø ${extAvg}</p>
             </div>
 
             <div class="view-switch">
@@ -3329,14 +3576,14 @@ function showStallionView(horse, options = {}) {
                 : `<span style="color:#2e7d32; font-weight:600;">Nein</span>`);
 
         return `
-            <tr class="${rowClass}" onclick="handleStallionRowClick(event, ${pferde.indexOf(mare)}, ${horseIndex})" ondblclick="handleStallionRowDoubleClick(event, ${pferde.indexOf(mare)}, ${horseIndex})" title="Markieren: Shift+Klick oder Doppelklick">
+            <tr class="${rowClass}" onclick="handleStallionRowClick(event, ${pferde.indexOf(mare)}, ${horseIndex}, 'stallion')" ondblclick="handleStallionRowDoubleClick(event, ${pferde.indexOf(mare)}, ${horseIndex}, 'stallion')" title="Markieren: Shift+Klick oder Doppelklick">
                 <td><b>${escapeHtml(mare.name)}</b></td>
                 <td>${mare.gp || 0}</td>
                 <td><span class="score-chip score-chip-good">${range.best}</span></td>
                 <td><span class="score-chip score-chip-warn">${range.worst}</span></td>
                 <td>${(Number(range.worst) - Number(range.best)).toFixed(2)}</td>
                 <td>${inbreedingCell}</td>
-                <td><button class="btn btn-mini" onclick="showStallionDetailFromMare(${pferde.indexOf(mare)}, ${horseIndex})">Details</button></td>
+                <td><button class="btn btn-mini" onclick="showStallionDetailFromStallionView(${pferde.indexOf(mare)}, ${horseIndex})">Details</button></td>
             </tr>
         `;
     }).join("");
@@ -3476,7 +3723,7 @@ function isMareStallionBookmarked(mare, stallion) {
     return entries.includes(stallionKey);
 }
 
-function toggleMareStallionBookmark(mareIndex, stallionIndex) {
+function toggleMareStallionBookmark(mareIndex, stallionIndex, returnTo = "mare") {
     const mare = pferde[mareIndex];
     const stallion = pferde[stallionIndex];
     if (!mare || !stallion) return;
@@ -3496,7 +3743,11 @@ function toggleMareStallionBookmark(mareIndex, stallionIndex) {
 
     store[mareKey] = Array.from(entries);
     writeMareStallionBookmarks(store);
-    showMareCombinationsByRefresh(mareIndex);
+    if (returnTo === "stallion") {
+        showStallionViewByRefresh(stallionIndex);
+    } else {
+        showMareCombinationsByRefresh(mareIndex);
+    }
 }
 
 function defaultSortDirection(column) {
@@ -3520,7 +3771,7 @@ function setMareInbreedingRiskFilter(mareIndex, checked) {
     showMareCombinationsByRefresh(mareIndex);
 }
 
-function handleStallionRowClick(event, mareIndex, stallionIndex) {
+function handleStallionRowClick(event, mareIndex, stallionIndex, returnTo = "mare") {
     if (!event?.shiftKey) return;
 
     const interactive = event.target?.closest("button, input, select, textarea, label, a");
@@ -3528,16 +3779,16 @@ function handleStallionRowClick(event, mareIndex, stallionIndex) {
 
     event.preventDefault();
     event.stopPropagation();
-    toggleMareStallionBookmark(mareIndex, stallionIndex);
+    toggleMareStallionBookmark(mareIndex, stallionIndex, returnTo);
 }
 
-function handleStallionRowDoubleClick(event, mareIndex, stallionIndex) {
+function handleStallionRowDoubleClick(event, mareIndex, stallionIndex, returnTo = "mare") {
     const interactive = event.target?.closest("button, input, select, textarea, label, a");
     if (interactive) return;
 
     event.preventDefault();
     event.stopPropagation();
-    toggleMareStallionBookmark(mareIndex, stallionIndex);
+    toggleMareStallionBookmark(mareIndex, stallionIndex, returnTo);
 }
 
 function setMareBookmarkFilter(mareIndex, checked) {

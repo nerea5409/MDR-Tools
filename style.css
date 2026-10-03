@@ -970,6 +970,26 @@ select:focus {
   background: rgba(255, 255, 255, 0.45);
 }
 
+.statistics-total-row {
+  background: rgba(31, 58, 46, 0.07) !important;
+  border-top: 2px solid rgba(31, 58, 46, 0.16);
+  font-weight: 600;
+}
+
+.statistics-total-row td:first-child {
+  color: #294438;
+}
+
+.statistics-western-section {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(31, 58, 46, 0.14);
+}
+
+.statistics-western-section h3 {
+  margin-top: 0;
+}
+
 .db-comparison-empty {
   color: #647367;
   font-size: 0.9rem;
