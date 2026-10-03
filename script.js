@@ -2110,6 +2110,7 @@ function extractCompactGeneValues(text) {
         { key: "agouti", label: "Agouti" },
         { key: "dun", label: "Dun" },
         { key: "cream", label: "Cream" },
+        { key: "creampearl", label: "Cream/Pearl" },
         { key: "champagne", label: "Champagne" },
         { key: "grey", label: "Grey" },
         { key: "ckit", label: "cKIT" },
@@ -2437,11 +2438,52 @@ function parseCKitLocus(text) {
     return alleles;
 }
 
+function parseCreamPearlLocus(text) {
+    const compactGenes = extractCompactGeneValues(text);
+    const combinedPair = parseCompactPair(compactGenes.creampearl, "creamPearl");
+    if (combinedPair) return combinedPair;
+
+    const hasCreamValue = "cream" in compactGenes && !isGeneUntested(compactGenes.cream);
+    const hasPearlValue = "pearl" in compactGenes && !isGeneUntested(compactGenes.pearl);
+    const creamPair = hasCreamValue ? parseCompactPair(compactGenes.cream, "cream") : null;
+    const pearlPair = hasPearlValue ? parseCompactPair(compactGenes.pearl, "pearl") : null;
+
+    if (hasCreamValue && !creamPair) {
+        const mixedPair = parseCompactPair(compactGenes.cream, "creamPearl");
+        if (mixedPair) return mixedPair;
+    }
+    if (hasPearlValue && !pearlPair) {
+        const mixedPair = parseCompactPair(compactGenes.pearl, "creamPearl");
+        if (mixedPair) return mixedPair;
+    }
+
+    if (!creamPair) return pearlPair;
+    if (!pearlPair) return creamPair;
+
+    const creamCopies = genotypeAlleleCount(creamPair.join("/"), "Cr");
+    const pearlCopies = genotypeAlleleCount(pearlPair.join("/"), "pl");
+    if (creamCopies + pearlCopies > 2) return null;
+
+    const alleles = [
+        ...Array(creamCopies).fill("Cr"),
+        ...Array(pearlCopies).fill("pl")
+    ];
+    if (alleles.length === 2) return alleles;
+
+    if (alleles.length === 1) {
+        const wildType = alleles[0] === "Cr" ? "cr" : "Pl";
+        alleles.push(wildType);
+        return alleles;
+    }
+
+    return creamPair;
+}
+
 function extractColorGenes(text) {
     return {
         extension: parsePairForGene(text, "extension"),
         agouti: parsePairForGene(text, "agouti"),
-        creamPearl: parsePairForGene(text, "creamPearl"),
+        creamPearl: parseCreamPearlLocus(text),
         dun: parsePairForGene(text, "dun"),
         silver: parsePairForGene(text, "silver"),
         pangare: parsePairForGene(text, "pangare"),
