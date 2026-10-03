@@ -2985,15 +2985,19 @@ function renderStatistics(ownerValue) {
     const westernDisciplines = TOURNAMENT_CATEGORIES.Western;
     const lkResults = new Map();
     visibleHorses.forEach((horse) => {
+        const age = getHorseAgeYears(horse);
+        const ageGroup = age === null ? "Alter unbekannt" : age < 3 ? "Fohlen" : "Ausgewachsen";
+
         westernDisciplines.forEach((discipline) => {
             const level = calculateDisciplineLevel(horse, discipline);
             const value = calculateTournamentValue(horse, discipline);
             if (!level || !Number.isFinite(value)) return;
 
-            if (!lkResults.has(level)) {
-                lkResults.set(level, { values: [], disciplines: new Map() });
+            const resultKey = `${ageGroup}|${level}`;
+            if (!lkResults.has(resultKey)) {
+                lkResults.set(resultKey, { ageGroup, level, values: [], disciplines: new Map() });
             }
-            const result = lkResults.get(level);
+            const result = lkResults.get(resultKey);
             result.values.push(value);
             if (!result.disciplines.has(discipline)) result.disciplines.set(discipline, []);
             result.disciplines.get(discipline).push(value);
@@ -3004,10 +3008,15 @@ function renderStatistics(ownerValue) {
         ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)
         : "—";
     const lkRows = Array.from(lkResults.entries())
-        .sort(([levelA], [levelB]) => Number(levelA.slice(2)) - Number(levelB.slice(2)))
-        .map(([level, result]) => `
+        .map(([, result]) => result)
+        .sort((a, b) => {
+            const ageOrder = { Fohlen: 0, Ausgewachsen: 1, "Alter unbekannt": 2 };
+            return ageOrder[a.ageGroup] - ageOrder[b.ageGroup] || Number(a.level.slice(2)) - Number(b.level.slice(2));
+        })
+        .map((result) => `
             <tr>
-                <td><b>${escapeHtml(level)}</b></td>
+                <td>${escapeHtml(result.ageGroup)}</td>
+                <td><b>${escapeHtml(result.level)}</b></td>
                 <td>${result.values.length}</td>
                 <td>${formatTournamentAverage(result.values)}</td>
                 ${westernDisciplines.map((discipline) => `<td>${formatTournamentAverage(result.disciplines.get(discipline))}</td>`).join("")}
@@ -3051,11 +3060,12 @@ function renderStatistics(ownerValue) {
 
         <div class="statistics-western-section">
             <h3>Western-Turnierwerte nach LK</h3>
-            <p>Durchschnittswerte der vorhandenen Western-Disziplinen, gruppiert nach berechneter Leistungsklasse.</p>
+            <p>Durchschnittswerte der Western-Disziplinen nach Altersgruppe und berechneter Leistungsklasse.</p>
             <div class="db-comparison-table-wrap">
                 <table class="db-comparison-table statistics-table">
                     <thead>
                         <tr>
+                            <th>Altersgruppe</th>
                             <th>LK</th>
                             <th>Werte</th>
                             <th>Western Ø</th>
@@ -3063,7 +3073,7 @@ function renderStatistics(ownerValue) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${lkRows || `<tr><td colspan="${westernDisciplines.length + 3}" class="db-comparison-empty">Für diesen Besitzer liegen keine Western-Turnierwerte mit LK vor.</td></tr>`}
+                            ${lkRows || `<tr><td colspan="${westernDisciplines.length + 4}" class="db-comparison-empty">Für diesen Besitzer liegen keine Western-Turnierwerte mit LK vor.</td></tr>`}
                     </tbody>
                 </table>
             </div>
