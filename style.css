@@ -83,11 +83,47 @@ main {
   display: block;
 }
 
+.pairing-search-controls {
+  display: grid;
+  grid-template-columns: max-content minmax(160px, 0.8fr) max-content minmax(220px, 1.4fr);
+  gap: 10px 12px;
+  align-items: center;
+}
+
+.pairing-search-controls > label {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.pairing-search-controls > select {
+  min-width: 0;
+  width: 100%;
+}
+
+.pairing-search-controls > .compare-summary {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.pairing-ranking-table {
+  min-width: 620px;
+}
+
 .turnier-grid {
   display: grid;
   grid-template-columns: minmax(320px, 1fr) minmax(320px, 1.05fr);
   gap: 20px;
   align-items: start;
+}
+
+@media (max-width: 640px) {
+  .pairing-search-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pairing-search-controls > .compare-summary {
+    grid-column: auto;
+  }
 }
 
 .turnier-import-card,
@@ -624,6 +660,10 @@ header::after {
   gap: 24px;
 }
 
+#zucht > .container {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .card {
   background: var(--surface);
   padding: 24px;
@@ -988,6 +1028,22 @@ select:focus {
 
 .statistics-western-section h3 {
   margin-top: 0;
+}
+
+.statistics-age-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.statistics-age-switch label {
+  color: #294438;
+  font-weight: 600;
+}
+
+.statistics-age-switch select {
+  max-width: 220px;
 }
 
 .db-comparison-empty {

@@ -202,8 +202,13 @@
   </div>
 
   <div class="container">
+    <div class="turnier-subnav breeding-subnav" role="tablist" aria-label="Zuchtbereich">
+      <button type="button" class="turnier-subtab active" data-breeding-tab="simulator" aria-selected="true" onclick="setBreedingSubtab('simulator')">Simulator</button>
+      <button type="button" class="turnier-subtab" data-breeding-tab="pairing" aria-selected="false" onclick="setBreedingSubtab('pairing')">Paarungssuche</button>
+    </div>
 
-    <div class="card">
+    <div id="breeding_simulator_panel">
+      <div class="card">
       <div class="parent-input-shell">
         <div class="parent-switch-row">
           <h3>Eltern auswählen</h3>
@@ -243,10 +248,26 @@
       <button class="btn" onclick="simulateBreeding()">
         Zucht simulieren
       </button>
+      </div>
+
+      <div id="breeding_result" class="breeding-panel">
+        <p>Simulation starten, um Ergebnis zu sehen.</p>
+      </div>
     </div>
 
-    <div id="breeding_result" class="breeding-panel">
-      <p>Simulation starten, um Ergebnis zu sehen.</p>
+    <div id="breeding_pairing_panel" style="display:none;">
+      <div class="card pairing-search-controls">
+        <label for="pairingObjective">Ranking-Ziel</label>
+        <select id="pairingObjective" onchange="setPairingObjective(this.value)">
+          <option value="coat">Fellfarbe</option>
+          <option value="exterior">Exterieur</option>
+          <option value="interior">Interieur</option>
+        </select>
+        <label id="pairingColorTargetLabel" for="pairingColorTarget">Gewünschte Fellfarbe</label>
+        <select id="pairingColorTarget" onchange="setPairingColorTarget(this.value)"></select>
+        <p id="pairingSearchSummary" class="compare-summary"></p>
+      </div>
+      <div id="pairingSearchResults" class="breeding-panel"></div>
     </div>
 
   </div>
