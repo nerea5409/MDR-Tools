@@ -1787,7 +1787,7 @@ function renderPairingSearch() {
             if (!pairingSearchState.targetColor) continue;
             const probability = pair.phenotypes?.get(pairingSearchState.targetColor);
             if (!Number.isFinite(probability)) continue;
-            ranked.push({ ...pair, score: probability, display: `${formatPercent(probability)} Wahrscheinlichkeit` });
+            ranked.push({ ...pair, score: probability, display: `${formatPercent(probability)}` });
             continue;
         }
 
