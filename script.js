@@ -2603,9 +2603,12 @@ function resolvePhenotypeFromState(state) {
         label = `${label} Roan`;
     }
 
+    if (hasSabino) {
+        label = `${label} ${sabinoCount === 2 ? "Sabino reinerbig, fast weiß" : "Sabino"}`;
+    }
+
     const pinto = [];
     if (hasTobiano) pinto.push("Tobiano");
-    if (hasSabino) pinto.push(sabinoCount === 2 ? "Sabino reinerbig, fast weiß" : "Sabino");
     if (hasWhite) pinto.push("Dominant White");
     if (hasOvero) pinto.push("Overo");
     if (hasSplashed) pinto.push("Splashed");
