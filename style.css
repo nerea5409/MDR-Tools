@@ -100,6 +100,91 @@ main {
   width: 100%;
 }
 
+.pairing-color-controls {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pairing-color-primary {
+  display: grid;
+  grid-template-columns: max-content minmax(160px, 1fr) max-content minmax(180px, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.pairing-color-primary label {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.pairing-color-primary select {
+  width: 100%;
+  min-width: 0;
+}
+
+.pairing-color-fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(31, 58, 46, 0.14);
+  border-radius: 8px;
+}
+
+.pairing-color-fieldset legend {
+  padding: 0 5px;
+  color: var(--primary);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.pairing-color-fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.pairing-color-fieldset input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary-2);
+}
+
+.pairing-color-fieldset select {
+  width: 100%;
+  min-width: 0;
+}
+
+.pairing-color-preview {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border-left: 3px solid #007c83;
+  background: rgba(0, 124, 131, 0.07);
+  color: var(--text-soft);
+}
+
+.pairing-color-preview strong {
+  color: var(--primary);
+  font-size: 1.05rem;
+}
+
+.pairing-color-validation {
+  margin: 0;
+  color: #8a4b00;
+  font-size: 0.84rem;
+}
+
 .pairing-search-controls > .compare-summary {
   grid-column: 1 / -1;
   margin: 0;
@@ -123,6 +208,10 @@ main {
 
   .pairing-search-controls > .compare-summary {
     grid-column: auto;
+  }
+
+  .pairing-color-primary {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -920,6 +1009,30 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(31,58,46,0.15);
 }
 
+.import-help {
+  margin: 3px 0 9px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+.import-status-error {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(198, 40, 40, 0.35);
+  border-radius: 9px;
+  background: rgba(244, 67, 54, 0.1);
+  color: #7f1d1d;
+}
+
+.import-status-success {
+  margin-top: 15px;
+}
+
+.import-status-details {
+  margin-top: 4px;
+  font-size: 0.88rem;
+}
+
 /* =========================
    SELECT (vereinheitlicht)
 ========================= */
@@ -1074,11 +1187,20 @@ select:focus {
   padding: 2px 3px;
 }
 
-.turnier-overview-table th:nth-child(n+3),
-.turnier-overview-table td:nth-child(n+3) {
+.turnier-overview-table th:nth-child(n+2),
+.turnier-overview-table td:nth-child(n+2) {
   width: 76px !important;
   min-width: 76px !important;
   max-width: 76px !important;
+}
+
+.turnier-overview-level {
+  margin-top: 14px;
+}
+
+.turnier-overview-level h4 {
+  margin: 0 0 6px;
+  color: #294438;
 }
 
 .turnier-overview-table .turnier-overview-cell {
@@ -1117,26 +1239,6 @@ select:focus {
 
 .turnier-overview-value {
   line-height: 0.95;
-}
-
-.turnier-lk-badge {
-  display: inline-block;
-  margin: 0;
-  font-size: 0.5rem;
-  font-weight: 400;
-  padding: 0 1px;
-  border-radius: 0;
-  background: transparent;
-  color: rgba(43, 61, 49, 0.55);
-  border: 0;
-  letter-spacing: 0.01em;
-  opacity: 0.9;
-}
-
-.turnier-lk-badge::before {
-  content: "—";
-  margin-right: 2px;
-  color: rgba(43, 61, 49, 0.34);
 }
 
 #db_liste.container {
@@ -2053,6 +2155,21 @@ select:focus {
     border-radius: 14px;
   }
 
+  #pferd_raw {
+    min-height: 48vh;
+    font-size: 16px;
+    line-height: 1.45;
+    padding: 12px;
+    resize: vertical;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #pferde .action-row > .btn {
+    flex: 1 1 140px;
+    min-height: 46px;
+    touch-action: manipulation;
+  }
+
   .parent-switch-row {
     flex-direction: column;
     align-items: stretch;
@@ -2091,4 +2208,63 @@ select:focus {
   }
 }
 
+@media (max-width: 640px) {
+  main {
+    padding: 18px 8px;
+  }
 
+  #pferde .container {
+    padding: 12px 0;
+  }
+
+  #pferde .form-card {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 900px) {
+  #db_race_switch.view-switch {
+    margin: 0 10px 10px !important;
+  }
+
+  .database-tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+    overflow: visible;
+    margin: 0 10px 12px;
+    padding: 12px;
+    width: calc(100% - 20px);
+    align-items: stretch;
+  }
+
+  .database-tools .db-inline-label {
+    margin: 4px 0 0;
+  }
+
+  .database-tools select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .database-actions {
+    position: static;
+    transform: none;
+    display: flex;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .db-search-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .btn.btn-db-reset {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+  }
+}

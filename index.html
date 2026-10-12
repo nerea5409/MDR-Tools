@@ -16,28 +16,11 @@
       max-width: 92px !important;
       overflow: hidden;
     }
-    .turnier-overview-table th:nth-child(n+3),
-    .turnier-overview-table td:nth-child(n+3) {
+    .turnier-overview-table th:nth-child(n+2),
+    .turnier-overview-table td:nth-child(n+2) {
       width: 92px !important;
       min-width: 92px !important;
       max-width: 92px !important;
-    }
-    .turnier-lk-badge {
-      display: inline-block;
-      margin: 0;
-      font-size: 0.62rem;
-      font-weight: 500;
-      padding: 0 2px;
-      border-radius: 0;
-      background: transparent;
-      color: rgba(43, 61, 49, 0.7);
-      border: 0;
-      letter-spacing: 0.02em;
-    }
-    .turnier-lk-badge::before {
-      content: "—";
-      margin-right: 3px;
-      color: rgba(43, 61, 49, 0.44);
     }
   </style>
 </head>
@@ -126,7 +109,9 @@
         <option value="quarter">Quarter Horse</option>
       </select>
 
-      <textarea id="pferd_raw" placeholder="MDR Pferdeblock hier einfügen..."></textarea>
+      <label for="pferd_raw"><b>Pferdedaten</b></label>
+      <p class="import-help">Auf Handy oder iPad den Text auf der Pferdeseite kopieren, hier einfügen und „Einlesen“ tippen.</p>
+      <textarea id="pferd_raw" placeholder="Kopierten MDR-Pferdetext hier einfügen..." autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
 
       <div class="action-row">
         <button class="btn" onclick="parsePferd()">🔍 Einlesen</button>
@@ -311,8 +296,71 @@
           <option value="exterior">Exterieur</option>
           <option value="interior">Interieur</option>
         </select>
-        <label id="pairingColorTargetLabel" for="pairingColorTarget">Gewünschte Fellfarbe</label>
-        <select id="pairingColorTarget" onchange="setPairingColorTarget(this.value)"></select>
+        <div id="pairingColorControls" class="pairing-color-controls">
+          <div class="pairing-color-primary">
+            <label for="pairingBaseColor">Grundfarbe</label>
+            <select id="pairingBaseColor" onchange="updatePairingColorGoal()">
+              <option value="Chestnut">Chestnut</option>
+              <option value="Bay">Bay</option>
+              <option value="Wildbay">Wildbay</option>
+              <option value="Sealbrown">Sealbrown</option>
+              <option value="Black">Black</option>
+            </select>
+
+            <label for="pairingCreamPearl">Cream/Pearl</label>
+            <select id="pairingCreamPearl" onchange="updatePairingColorGoal()">
+              <option value="none">Keine Aufhellung</option>
+              <option value="cream">Cream</option>
+              <option value="doubleCream">Doppel-Cream</option>
+              <option value="pearl">Pearl</option>
+            </select>
+          </div>
+
+          <fieldset class="pairing-color-fieldset">
+            <legend>Weitere Aufhellungen</legend>
+            <label><input id="pairingDun" type="checkbox" onchange="updatePairingColorGoal()"> Dun</label>
+            <label><input id="pairingChampagne" type="checkbox" onchange="updatePairingColorGoal()"> Champagne</label>
+            <label><input id="pairingSilver" type="checkbox" onchange="updatePairingColorGoal()"> Silver</label>
+            <label><input id="pairingFlaxen" type="checkbox" onchange="updatePairingColorGoal()"> Flaxen</label>
+            <label><input id="pairingSooty" type="checkbox" onchange="updatePairingColorGoal()"> Sooty</label>
+            <label><input id="pairingPangare" type="checkbox" onchange="updatePairingColorGoal()"> Pangare</label>
+            <label><input id="pairingGrey" type="checkbox" onchange="updatePairingColorGoal()"> Grey</label>
+          </fieldset>
+
+          <fieldset class="pairing-color-fieldset">
+            <legend>KIT (höchstens zwei Merkmale)</legend>
+            <label><input class="pairing-ckit-option" data-allele="To" type="checkbox" onchange="updatePairingColorGoal(this)"> Tobiano</label>
+            <label><input id="pairingSabino" class="pairing-ckit-option" data-allele="Sb" type="checkbox" onchange="updatePairingColorGoal(this)"> Sabino</label>
+            <label><input id="pairingSabinoHomo" type="checkbox" onchange="updatePairingColorGoal(this)"> Sabino reinerbig</label>
+            <label><input class="pairing-ckit-option" data-allele="W" type="checkbox" onchange="updatePairingColorGoal(this)"> Dominant White</label>
+            <label><input class="pairing-ckit-option" data-allele="Rn" type="checkbox" onchange="updatePairingColorGoal(this)"> Roan</label>
+          </fieldset>
+
+          <fieldset class="pairing-color-fieldset">
+            <legend>Weitere Muster</legend>
+            <label for="pairingLeopardPattern">Leopard/PATN-Muster</label>
+            <select id="pairingLeopardPattern" onchange="updatePairingColorGoal()">
+              <option value="none">Keines</option>
+              <option value="varnish">Varnish Roan</option>
+              <option value="leopard">Leopard (PATN1)</option>
+              <option value="fewspot">Few Spot (PATN1)</option>
+              <option value="blanket">Blanket (PATN2)</option>
+              <option value="snowcap">Snowcap (PATN2)</option>
+            </select>
+            <label><input id="pairingOvero" type="checkbox" onchange="updatePairingColorGoal()"> Overo</label>
+            <label><input id="pairingSplashed" type="checkbox" onchange="updatePairingColorGoal()"> Splashed White</label>
+            <label><input id="pairingSplashedHomo" type="checkbox" onchange="updatePairingColorGoal(this)"> Splashed homozygot (stärker)</label>
+            <label><input id="pairingRabicano" type="checkbox" onchange="updatePairingColorGoal()"> Rabicano</label>
+          </fieldset>
+
+          <div class="pairing-color-preview" aria-live="polite">
+            <span>Resultierende Zielfarbe</span>
+            <strong id="pairingColorPreview">Chestnut</strong>
+          </div>
+          <label id="pairingColorTargetLabel" for="pairingColorTarget" hidden>Berechnete Zielfarbe</label>
+          <select id="pairingColorTarget" hidden aria-hidden="true" tabindex="-1"></select>
+          <p id="pairingColorValidation" class="pairing-color-validation" role="status"></p>
+        </div>
         <p id="pairingSearchSummary" class="compare-summary"></p>
       </div>
       <div id="pairingSearchResults" class="breeding-panel"></div>

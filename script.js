@@ -221,6 +221,37 @@ const pairingSearchState = {
     targetColor: ""
 };
 
+const PAIRING_GUIDE_COLOR_TARGETS = [
+    "Chestnut", "Wildbay", "Bay", "Sealbrown", "Black",
+    "Gold Champagne", "Amber Champagne", "Sable Champagne", "Classic Champagne",
+    "Palomino", "Buckskin", "Smoky Brown", "Smoky Black", "Cremello", "Perlino", "Sealbrown Cream", "Smoky Cream",
+    "Red Dun", "Classic Dun", "Brown Dun", "Grulla",
+    "Apricot", "Pearl Bay", "Pearl Brown", "Pearl Black",
+    "Silver Wildbay", "Silver Bay", "Silver Sealbrown", "Silver Black", "Flaxen Chestnut", "Grey",
+    "Dunalino", "Gold Dun", "Gold Cream", "Apricot Dun", "Gold Pearl", "Cremello Dun", "Cremello Champagne", "Gold Dun Cream", "Gold Dun Pearl",
+    "(Wild) Dunskin", "Amber Dun", "Amber Cream", "Pearl Bay Dun", "Amber Pearl", "Perlino Dun", "Perlino Champagne", "Amber Dun Cream", "Amber Dun Pearl",
+    "Smoky Brown Dun", "Sable Dun", "Sable Cream", "Pearl Brown Dun", "Sable Pearl", "Sealbrown Cream Dun", "Sealbrown Cream Champagne", "Sable Dun Cream", "Sable Dun Pearl",
+    "Smoky Grulla", "Classic Cream", "Pearl Black Dun", "Classic Pearl", "Smoky Cream Dun", "Smoky Cream Champagne", "Classic Dun Cream", "Classic Dun Pearl",
+    ...["Chestnut", "Wildbay", "Bay", "Sealbrown", "Black"].flatMap((base) => [
+        `${base} (Tobiano)`,
+        `${base} Sabino`,
+        `${base} Sabino reinerbig, fast weiß`,
+        `${base} (Dominant White)`,
+        `${base} Roan`,
+        `${base} (Overo)`,
+        `${base} (Tovero)`,
+        `${base} (Splashed)`,
+        `${base} (Splashed, homozygot stärker)`,
+        `${base} (Leopard)`,
+        `${base} (Few Spot)`,
+        `${base} (Blanket)`,
+        `${base} (Snowcap)`,
+        `${base} (Varnish Roan)`,
+        `${base} (Rabicano)`,
+        ...(base === "Black" ? [] : [`${base} + Pangare`, `${base} (Sooty)`])
+    ])
+];
+
 function setBreedingSubtab(tabName) {
     const currentTab = document.querySelector("[data-breeding-tab].active")?.dataset.breedingTab;
     if (currentTab !== tabName && document.getElementById("zucht")?.classList.contains("aktiv")) {
@@ -255,6 +286,92 @@ function setPairingObjective(objective) {
 
 function setPairingColorTarget(targetColor) {
     pairingSearchState.targetColor = targetColor;
+    renderPairingSearch();
+}
+
+function buildPairingColorTargetState() {
+    const base = document.getElementById("pairingBaseColor")?.value || "Chestnut";
+    const baseGenes = {
+        Chestnut: { extension: "e/e", agouti: "a0/a0" },
+        Bay: { extension: "E/E", agouti: "A1/A1" },
+        Wildbay: { extension: "E/E", agouti: "Ap/Ap" },
+        Sealbrown: { extension: "E/E", agouti: "At/At" },
+        Black: { extension: "E/E", agouti: "a0/a0" }
+    }[base] || { extension: "e/e", agouti: "a0/a0" };
+
+    const creamPearl = document.getElementById("pairingCreamPearl")?.value || "none";
+    const creamPearlGenotypes = {
+        none: "cr/cr",
+        cream: "Cr/cr",
+        doubleCream: "Cr/Cr",
+        pearl: "pl/pl"
+    };
+    const selectedCKit = Array.from(document.querySelectorAll(".pairing-ckit-option:checked"))
+        .map((input) => input.dataset.allele);
+    const cKitAlleles = document.getElementById("pairingSabinoHomo")?.checked
+        ? ["Sb", "Sb"]
+        : [...selectedCKit, ...Array(Math.max(0, 2 - selectedCKit.length)).fill("+")];
+    const pattern = document.getElementById("pairingLeopardPattern")?.value || "none";
+    const leopardState = {
+        none: { leopard: "lp/lp", patn1: "patn1/patn1", patn2: "patn2/patn2" },
+        varnish: { leopard: "Lp/lp", patn1: "patn1/patn1", patn2: "patn2/patn2" },
+        leopard: { leopard: "Lp/lp", patn1: "PATN1/patn1", patn2: "patn2/patn2" },
+        fewspot: { leopard: "Lp/Lp", patn1: "PATN1/PATN1", patn2: "patn2/patn2" },
+        blanket: { leopard: "Lp/lp", patn1: "patn1/patn1", patn2: "PATN2/patn2" },
+        snowcap: { leopard: "Lp/Lp", patn1: "patn1/patn1", patn2: "PATN2/PATN2" }
+    }[pattern];
+
+    return {
+        ...baseGenes,
+        creamPearl: creamPearlGenotypes[creamPearl],
+        dun: document.getElementById("pairingDun")?.checked ? "D/d" : "d/d",
+        champagne: document.getElementById("pairingChampagne")?.checked ? "Ch/ch" : "ch/ch",
+        silver: document.getElementById("pairingSilver")?.checked ? "Z/z" : "z/z",
+        flaxen: base === "Chestnut" && document.getElementById("pairingFlaxen")?.checked ? "f/f" : "F/F",
+        sooty: base !== "Black" && document.getElementById("pairingSooty")?.checked ? "Sty/sty" : "sty/sty",
+        pangare: base !== "Black" && document.getElementById("pairingPangare")?.checked ? "Pa/pa" : "pa/pa",
+        grey: document.getElementById("pairingGrey")?.checked ? "G/g" : "g/g",
+        cKit: cKitAlleles.join("/"),
+        overo: document.getElementById("pairingOvero")?.checked ? "Ov/ov" : "ov/ov",
+        splashed: document.getElementById("pairingSplashed")?.checked
+            ? (document.getElementById("pairingSplashedHomo")?.checked ? "Spl/Spl" : "Spl/spl")
+            : "spl/spl",
+        ...leopardState
+    };
+}
+
+function updatePairingColorGoal(changedInput) {
+    const validation = document.getElementById("pairingColorValidation");
+    const cKitInputs = Array.from(document.querySelectorAll(".pairing-ckit-option"));
+    const sabinoHomo = document.getElementById("pairingSabinoHomo");
+    const sabinoInput = document.getElementById("pairingSabino");
+    const splashedInput = document.getElementById("pairingSplashed");
+    const splashedHomo = document.getElementById("pairingSplashedHomo");
+
+    if (changedInput?.classList.contains("pairing-ckit-option")) {
+        const selectedCount = cKitInputs.filter((input) => input.checked).length;
+        if (selectedCount > 2 || (sabinoHomo?.checked && changedInput.id !== "pairingSabino")) {
+            changedInput.checked = false;
+            if (validation) validation.textContent = "Am KIT können höchstens zwei Merkmale gleichzeitig gewählt sein.";
+            return;
+        }
+    }
+
+    if (changedInput === sabinoHomo && sabinoHomo.checked) {
+        if (sabinoInput) sabinoInput.checked = true;
+        cKitInputs.filter((input) => input !== sabinoInput).forEach((input) => { input.checked = false; });
+    } else if (changedInput === sabinoInput && !sabinoInput.checked && sabinoHomo?.checked) {
+        sabinoHomo.checked = false;
+    }
+
+    if (changedInput === splashedInput && !splashedInput.checked && splashedHomo) {
+        splashedHomo.checked = false;
+    }
+    if (changedInput === splashedHomo && splashedHomo.checked && splashedInput) {
+        splashedInput.checked = true;
+    }
+
+    if (validation) validation.textContent = "";
     renderPairingSearch();
 }
 
@@ -325,8 +442,19 @@ async function savePferd(pferd) {
 
 async function parsePferd() {
 
-    const raw = document.getElementById("pferd_raw").value;
+    const input = document.getElementById("pferd_raw");
+    const status = document.getElementById("import_status");
+    const raw = String(input?.value || "")
+        .replace(/\r\n?/g, "\n")
+        .replace(/[\u00a0\u202f]/g, " ")
+        .replace(/[\u200b-\u200d\ufeff]/g, "");
     const breedMode = document.getElementById("importBreedMode")?.value || "auto";
+
+    if (!raw.trim()) {
+        if (status) status.innerHTML = `<div class="import-status-error">Bitte zuerst den kopierten Pferdetext einfügen.</div>`;
+        input?.focus();
+        return;
+    }
 
     const detectedBreed = findRasse(raw);
     const resolvedBreed = breedMode === "auto" ? detectedBreed : "Quarter Horse";
@@ -346,7 +474,9 @@ async function parsePferd() {
     };
 
     if (!pferd.name) {
-        alert("❌ Name nicht erkannt!");
+        if (status) {
+            status.innerHTML = `<div class="import-status-error">Der Pferdename wurde nicht erkannt. Bitte den vollständigen Text der Pferdeseite inklusive Name und Alter kopieren.</div>`;
+        }
         return;
     }
 
@@ -357,10 +487,18 @@ async function parsePferd() {
     const statusTone = saveResult?.status === "updated"
         ? "border:1px solid rgba(255, 143, 0, 0.35); background: rgba(255, 193, 7, 0.12); color:#8a4b00;"
         : "border:1px solid rgba(56, 142, 60, 0.35); background: rgba(76, 175, 80, 0.12); color:#1b5e20;";
+    const parsedData = [
+        `${Object.keys(pferd.exterieur).length} Exterieurwerte`,
+        `${Object.keys(pferd.leistungen).length} Leistungswerte`,
+        `${Object.keys(pferd.interieur).length} Interieurwerte`,
+        pferd.farbe ? "Farben" : null,
+        pferd.gp ? "Gesamtpotenzial" : null
+    ].filter(Boolean).join(" · ");
 
-    document.getElementById("import_status").innerHTML = `
-        <div class="card" style="margin-top:15px; ${statusTone}">
+    if (status) status.innerHTML = `
+        <div class="card import-status-success" style="${statusTone}">
             <strong>${escapeHtml(pferd.name)}</strong> ${statusText}!${saveResult?.status === "updated" ? " (Eintrag wurde überschrieben)" : ""}
+            <div class="import-status-details">Erkannt: ${escapeHtml(parsedData || "nur Name")}</div>
         </div>
     `;
 }
@@ -997,7 +1135,7 @@ function extractExteriorGenesAnyBlock(text) {
         const rightParts = rightRaw.trim().split(/\s+/);
         if (leftParts.length < 2 || rightParts.length < 1) continue;
 
-        const key = leftParts[0];
+        const key = resolveExteriorTraitKey(leftParts[0]) || leftParts[0];
         const leftGenes = leftParts.slice(1, 5);
         const rightGenes = rightParts.slice(0, 4);
         const genes = [...leftGenes, ...rightGenes];
@@ -1016,14 +1154,14 @@ function extractExteriorGenesAnyBlock(text) {
 const EXTERIOR_TEXT_TRAITS = [
     { key: "Kopf", aliases: ["kopf"] },
     { key: "Halsansatz", aliases: ["halsansatz"] },
-    { key: "Widerist", aliases: ["widerist"] },
-    { key: "Schultern", aliases: ["schultern", "schulter"] },
+    { key: "Widerrist", aliases: ["widerrist", "widerist"] },
+    { key: "Schulter", aliases: ["schultern", "schulter"] },
     { key: "Brust", aliases: ["brust"] },
     { key: "Rückenlänge", aliases: ["ruckenlange", "rueckenlaenge", "ruckenlaenge"] },
     { key: "Kruppe", aliases: ["kruppe"] },
     { key: "Beinwinkelung", aliases: ["beinwinkelung"] },
     { key: "Fesseln", aliases: ["fesseln", "fessel"] },
-    { key: "Hufen", aliases: ["hufen", "huf"] },
+    { key: "Hufe", aliases: ["hufe", "hufen", "huf"] },
     { key: "Gebiss", aliases: ["gebiss"] },
     { key: "Hals", aliases: ["hals"] },
     { key: "Rückenlinie", aliases: ["ruckenlinie", "rueckenlinie"] },
@@ -1048,7 +1186,7 @@ function mapExteriorTextScore(label) {
     const n = normalizeExteriorText(label);
     if (!n) return null;
 
-    if (/nicht\s+getestet|ungetestet|nicht\s+bewertet|k\s*a/.test(n)) return 0;
+    if (/nicht\s+getestet|ungetestet|nicht\s+bewertet|^k\s*a$/.test(n)) return 0;
 
     const hasVielZu = /\bviel\s+zu\b/.test(n);
     const hasZu = /\bzu\b/.test(n);
@@ -1283,13 +1421,10 @@ function analyzeExteriorInput() {
 ========================= */
 
 function evaluateExteriorFixed(left, right) {
-    const matches = summarizePositionMatches([...left, ...right]).totalCorrect;
+    const m = summarizePositionMatches([...left, ...right]);
+    const worstGroup = Math.min(m.frontCorrect, m.backCorrect);
 
-    if (matches >= 8) return 1;
-    if (matches >= 6) return 2;
-    if (matches >= 4) return 3;
-    if (matches >= 2) return 4;
-    return 5;
+    return 5 - worstGroup;
 }
 
 
@@ -1471,7 +1606,7 @@ function summarizePositionMatches(genes) {
 
     genes.forEach((g, i) => {
         if (i < 4) {
-            if (g === "HH" || g === "Hh") frontCorrect++;
+            if (g === "HH" || g === "Hh" || g === "hH") frontCorrect++;
         } else {
             if (g === "hh") backCorrect++;
         }
@@ -1745,14 +1880,48 @@ function renderPairingSearch() {
     const objectiveSelect = document.getElementById("pairingObjective");
     const colorTargetSelect = document.getElementById("pairingColorTarget");
     const colorTargetLabel = document.getElementById("pairingColorTargetLabel");
+    const colorControls = document.getElementById("pairingColorControls");
+    const colorPreview = document.getElementById("pairingColorPreview");
     const summary = document.getElementById("pairingSearchSummary");
     const result = document.getElementById("pairingSearchResults");
-    if (!objectiveSelect || !colorTargetSelect || !colorTargetLabel || !summary || !result) return;
+    if (!objectiveSelect || !colorTargetSelect || !colorTargetLabel || !colorControls || !colorPreview || !summary || !result) return;
 
     const objective = pairingSearchState.objective;
     objectiveSelect.value = objective;
-    colorTargetLabel.style.display = objective === "coat" ? "block" : "none";
-    colorTargetSelect.style.display = objective === "coat" ? "block" : "none";
+    colorControls.style.display = objective === "coat" ? "grid" : "none";
+    colorTargetLabel.hidden = true;
+    colorTargetSelect.hidden = true;
+
+    const base = document.getElementById("pairingBaseColor")?.value || "Chestnut";
+    const greyInput = document.getElementById("pairingGrey");
+    const greySelected = Boolean(greyInput?.checked);
+    const silverInput = document.getElementById("pairingSilver");
+    const flaxenInput = document.getElementById("pairingFlaxen");
+    const sootyInput = document.getElementById("pairingSooty");
+    const pangareInput = document.getElementById("pairingPangare");
+    if (silverInput) {
+        silverInput.disabled = base === "Chestnut";
+        if (silverInput.disabled) silverInput.checked = false;
+    }
+    if (flaxenInput) {
+        flaxenInput.disabled = base !== "Chestnut";
+        if (flaxenInput.disabled) flaxenInput.checked = false;
+    }
+    if (sootyInput) {
+        sootyInput.disabled = base === "Black";
+        if (sootyInput.disabled) sootyInput.checked = false;
+    }
+    if (pangareInput) {
+        pangareInput.disabled = base === "Black";
+        if (pangareInput.disabled) pangareInput.checked = false;
+    }
+    const baseSelect = document.getElementById("pairingBaseColor");
+    if (baseSelect) baseSelect.disabled = greySelected;
+
+    const goalState = buildPairingColorTargetState();
+    const resolvedGoal = resolvePhenotypeFromState(goalState);
+    pairingSearchState.targetColor = greySelected ? "Grey" : resolvedGoal;
+    colorPreview.textContent = pairingSearchState.targetColor;
 
     const { pairs, excludedInbreeding, excludedPedigree } = getPairingCandidates();
     const evaluatedPairs = objective === "coat"
@@ -1767,15 +1936,12 @@ function renderPairingSearch() {
             });
         });
 
-        const colorOptions = Array.from(colorTotals.keys())
+        const colorOptions = [...new Set([...PAIRING_GUIDE_COLOR_TARGETS, ...colorTotals.keys(), pairingSearchState.targetColor])]
             .sort((a, b) => a.localeCompare(b, "de", { sensitivity: "base" }));
-        if (!colorOptions.includes(pairingSearchState.targetColor)) {
-            pairingSearchState.targetColor = "";
-        }
         colorTargetSelect.innerHTML = colorOptions.length
-            ? `<option value="">Wunschfarbe auswählen</option>${colorOptions.map((phenotype) => `<option value="${escapeHtml(phenotype)}" ${phenotype === pairingSearchState.targetColor ? "selected" : ""}>${escapeHtml(phenotype)}</option>`).join("")}`
+            ? colorOptions.map((phenotype) => `<option value="${escapeHtml(phenotype)}" ${phenotype === pairingSearchState.targetColor ? "selected" : ""}>${escapeHtml(phenotype)}</option>`).join("")
             : `<option value="">Keine auswertbaren Farbdaten</option>`;
-        colorTargetSelect.disabled = colorOptions.length === 0;
+        colorTargetSelect.disabled = false;
     }
 
     const ranked = [];
@@ -2667,9 +2833,13 @@ function resolvePhenotypeFromState(state) {
     }
 
     const pinto = [];
-    if (hasTobiano) pinto.push("Tobiano");
+    if (hasTobiano && overoCount > 0) {
+        pinto.push("Tovero");
+    } else {
+        if (hasTobiano) pinto.push("Tobiano");
+        if (overoCount > 0) pinto.push("Overo");
+    }
     if (hasWhite) pinto.push("Dominant White");
-    if (overoCount > 0) pinto.push("Overo");
     if (pinto.length) {
         label = `${label} (${pinto.join(" + ")})`;
     }
@@ -3189,45 +3359,69 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
         const ownerName = normalizeOwner(horse.besitzer);
         return ownerToShow === "__all__" || ownerName === ownerToShow;
     });
+    const currentLevelValue = document.getElementById("turnierLevelSelect")?.value;
+    const selectedLevel = currentLevelValue === "__all__" || /^LK(?:10|[1-9])$/.test(currentLevelValue || "")
+        ? (currentLevelValue || "__all__")
+        : "__all__";
 
     const westernDisciplines = ["Reining", "Trail", "Pleasure", "Horsemanship"];
-    const allValues = visibleHorses
-        .flatMap((horse) => westernDisciplines
-            .map((discipline) => calculateTournamentValue(horse, discipline))
-            .filter((value) => Number.isFinite(value))
-        );
+    const horseValues = visibleHorses.map((horse) => ({
+        horse,
+        disciplines: westernDisciplines.map((discipline) => ({
+            level: calculateDisciplineLevel(horse, discipline),
+            value: calculateTournamentValue(horse, discipline)
+        }))
+    }));
 
-    const globalMin = allValues.length ? Math.min(...allValues) : null;
-    const globalMax = allValues.length ? Math.max(...allValues) : null;
+    const levelSections = Array.from({ length: 10 }, (_, index) => 10 - index)
+        .map((levelNumber) => {
+            const level = `LK${levelNumber}`;
+            const horsesInLevel = horseValues
+                .filter(({ disciplines }) => disciplines.some((discipline) => discipline.level === level))
+            const levelValues = horsesInLevel
+                .flatMap(({ disciplines }) => disciplines
+                    .filter((discipline) => discipline.level === level)
+                    .map(({ value }) => value)
+                    .filter((value) => Number.isFinite(value)));
+            const levelMin = levelValues.length ? Math.min(...levelValues) : null;
+            const levelMax = levelValues.length ? Math.max(...levelValues) : null;
+            const rows = horsesInLevel
+                .map(({ horse, disciplines }) => {
+                    const valueCells = disciplines.map(({ level: disciplineLevel, value }) => {
+                        if (disciplineLevel !== level || !Number.isFinite(value)) {
+                            return `<td class="turnier-overview-cell turnier-overview-cell-empty"></td>`;
+                        }
 
-    const sortedHorses = visibleHorses.slice();
+                        const { background, textColor } = getTurnierCellColors(value, levelMin, levelMax);
+                        return `<td class="turnier-overview-cell" style="background:${background}; color:${textColor};"><div class="turnier-overview-value-wrap"><span class="turnier-overview-value">${value}</span></div></td>`;
+                    }).join("");
 
-    const rows = sortedHorses.map((horse) => {
-            const valueCells = westernDisciplines.map((discipline) => {
-                const value = calculateTournamentValue(horse, discipline);
-                if (!Number.isFinite(value)) {
-                    return `<td class="turnier-overview-cell turnier-overview-cell-empty">—</td>`;
-                }
+                    return `
+                        <tr>
+                            <td><b>${escapeHtml(horse.name)}</b></td>
+                            ${valueCells}
+                        </tr>
+                    `;
+                })
+                .join("");
 
-                const { background, textColor } = getTurnierCellColors(value, globalMin, globalMax);
-                const lk = calculateDisciplineLevel(horse, discipline);
-                const lkBadge = lk ? `<span class="turnier-lk-badge">${lk}</span>` : "";
-                return `<td class="turnier-overview-cell" style="background:${background}; color:${textColor};"><div class="turnier-overview-value-wrap"><span class="turnier-overview-value">${value}</span>${lkBadge}</div></td>`;
-            }).join("");
-
-            const average = westernDisciplines
-                .map((discipline) => calculateTournamentValue(horse, discipline))
-                .filter((value) => Number.isFinite(value));
-            const avgValue = average.length
-                ? Math.round(average.reduce((sum, value) => sum + value, 0) / average.length)
-                : null;
+            if (!rows || (selectedLevel !== "__all__" && selectedLevel !== level)) return "";
 
             return `
-                <tr>
-                    <td><b>${escapeHtml(horse.name)}</b></td>
-                    <td>${avgValue !== null ? avgValue : "—"}</td>
-                    ${valueCells}
-                </tr>
+                <section class="turnier-overview-level">
+                    <h4>${level}</h4>
+                    <div class="db-comparison-table-wrap">
+                        <table class="db-comparison-table turnier-overview-table">
+                            <thead>
+                                <tr>
+                                    <th>Pferd</th>
+                                    ${westernDisciplines.map((discipline) => `<th>${discipline}</th>`).join("")}
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </section>
             `;
         })
         .join("");
@@ -3236,56 +3430,26 @@ function renderOwnerTurnierComparison(horses, containerId = "db_comparison") {
         { value: "__all__", label: "Alle Besitzer" },
         ...owners.map((owner) => ({ value: owner, label: owner }))
     ];
-
-    const averageRow = (() => {
-        const averageValues = westernDisciplines.map((discipline) => {
-            const values = sortedHorses
-                .map((horse) => calculateTournamentValue(horse, discipline))
-                .filter((value) => Number.isFinite(value));
-            if (!values.length) return null;
-            return values.reduce((sum, value) => sum + value, 0) / values.length;
-        });
-
-        const averageValue = averageValues.filter((value) => Number.isFinite(value));
-        const avgWestern = averageValue.length
-            ? Math.round(averageValue.reduce((sum, value) => sum + value, 0) / averageValue.length)
-            : null;
-
-        return `
-            <tr class="turnier-overview-average-row">
-                <td><b>Ø</b></td>
-                <td>${avgWestern !== null ? avgWestern : "—"}</td>
-                ${averageValues.map((value) => `<td>${value !== null ? Math.round(value) : "—"}</td>`).join("")}
-            </tr>
-        `;
-    })();
+    const levelOptions = [
+        { value: "__all__", label: "Alle LK" },
+        ...Array.from({ length: 10 }, (_, index) => 10 - index)
+            .map((levelNumber) => ({ value: `LK${levelNumber}`, label: `LK ${levelNumber}` }))
+    ];
 
     container.innerHTML = `
         <h3>Western-Turnierübersicht</h3>
-        <p>Wähle einen Besitzer aus, um alle Pferde und Fohlen mit ihren Western-Turnierwerten kompakt zu sehen.</p>
+        <p>Wähle eine Leistungsklasse aus. Die Farben vergleichen die Werte nur innerhalb derselben LK.</p>
         <div class="turnier-overview-toolbar">
             <label for="turnierOwnerSelect">Besitzer</label>
             <select id="turnierOwnerSelect" onchange="renderOwnerTurnierComparison(pferde, 'turnier_comparison')">
                 ${ownerOptions.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === ownerToShow ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
             </select>
+            <label for="turnierLevelSelect">Leistungsklasse</label>
+            <select id="turnierLevelSelect" onchange="renderOwnerTurnierComparison(pferde, 'turnier_comparison')">
+                ${levelOptions.map((option) => `<option value="${option.value}" ${option.value === selectedLevel ? "selected" : ""}>${option.label}</option>`).join("")}
+            </select>
         </div>
-        ${rows ? `
-            <div class="db-comparison-table-wrap">
-                <table class="db-comparison-table turnier-overview-table">
-                    <thead>
-                        <tr>
-                            <th>Pferd</th>
-                            <th>Western Ø</th>
-                            <th>Reining</th>
-                            <th>Trail</th>
-                            <th>Pleasure</th>
-                            <th>Horsemanship</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}${averageRow}</tbody>
-                </table>
-            </div>
-        ` : `<div class="db-comparison-empty">Für diesen Besitzer liegen derzeit keine Western-Turnierdaten vor.</div>`}
+        ${levelSections || `<div class="db-comparison-empty">Für diese Auswahl liegen derzeit keine Western-Leistungsklassen vor.</div>`}
     `;
 }
 
