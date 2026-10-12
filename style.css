@@ -163,6 +163,13 @@ main {
   min-width: 0;
 }
 
+#pairingLeopardPattern {
+  width: 100%;
+  min-width: 0;
+  max-width: 320px;
+  justify-self: start;
+}
+
 .pairing-color-preview {
   display: flex;
   align-items: baseline;

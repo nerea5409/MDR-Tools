@@ -241,7 +241,7 @@ const PAIRING_GUIDE_COLOR_TARGETS = [
         `${base} (Overo)`,
         `${base} (Tovero)`,
         `${base} (Splashed)`,
-        `${base} (Splashed, homozygot stärker)`,
+        `${base} (Splashed, reinerbig)`,
         `${base} (Leopard)`,
         `${base} (Few Spot)`,
         `${base} (Blanket)`,
@@ -327,9 +327,9 @@ function buildPairingColorTargetState() {
         dun: document.getElementById("pairingDun")?.checked ? "D/d" : "d/d",
         champagne: document.getElementById("pairingChampagne")?.checked ? "Ch/ch" : "ch/ch",
         silver: document.getElementById("pairingSilver")?.checked ? "Z/z" : "z/z",
-        flaxen: base === "Chestnut" && document.getElementById("pairingFlaxen")?.checked ? "f/f" : "F/F",
-        sooty: base !== "Black" && document.getElementById("pairingSooty")?.checked ? "Sty/sty" : "sty/sty",
-        pangare: base !== "Black" && document.getElementById("pairingPangare")?.checked ? "Pa/pa" : "pa/pa",
+        flaxen: "F/F",
+        sooty: "sty/sty",
+        pangare: "pa/pa",
         grey: document.getElementById("pairingGrey")?.checked ? "G/g" : "g/g",
         cKit: cKitAlleles.join("/"),
         overo: document.getElementById("pairingOvero")?.checked ? "Ov/ov" : "ov/ov",
@@ -1896,24 +1896,9 @@ function renderPairingSearch() {
     const greyInput = document.getElementById("pairingGrey");
     const greySelected = Boolean(greyInput?.checked);
     const silverInput = document.getElementById("pairingSilver");
-    const flaxenInput = document.getElementById("pairingFlaxen");
-    const sootyInput = document.getElementById("pairingSooty");
-    const pangareInput = document.getElementById("pairingPangare");
     if (silverInput) {
         silverInput.disabled = base === "Chestnut";
         if (silverInput.disabled) silverInput.checked = false;
-    }
-    if (flaxenInput) {
-        flaxenInput.disabled = base !== "Chestnut";
-        if (flaxenInput.disabled) flaxenInput.checked = false;
-    }
-    if (sootyInput) {
-        sootyInput.disabled = base === "Black";
-        if (sootyInput.disabled) sootyInput.checked = false;
-    }
-    if (pangareInput) {
-        pangareInput.disabled = base === "Black";
-        if (pangareInput.disabled) pangareInput.checked = false;
     }
     const baseSelect = document.getElementById("pairingBaseColor");
     if (baseSelect) baseSelect.disabled = greySelected;
@@ -2829,7 +2814,7 @@ function resolvePhenotypeFromState(state) {
     if (hasSabino) label = `${label} ${sabinoCount === 2 ? "Sabino reinerbig, fast weiß" : "Sabino"}`;
     if (hasSplashed) {
         const splashedCount = genotypeAlleleCount(state.splashed, "Spl");
-        label = `${label} (Splashed${splashedCount === 2 ? ", homozygot stärker" : ""})`;
+        label = `${label} (Splashed${splashedCount === 2 ? ", reinerbig" : ""})`;
     }
 
     const pinto = [];
