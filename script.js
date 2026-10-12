@@ -1196,7 +1196,7 @@ function mapExteriorTextScore(label) {
     const hasZu = /\bzu\b/.test(n);
 
     if (/(exzellent|exzel+ent|excellent)/.test(n)) return 1;
-    if (/\bgut\b|\bguter\b|\bgute\b/.test(n)) return 2;
+    if (/\bgut\b|\bguter\b|\bgute\b|\bgutes\b/.test(n)) return 2;
     if (/passabel|passabl/.test(n)) return 3;
 
     if (/\b(starker|starke|starkes|starken|stark)\b/.test(n)) return 5;
@@ -1333,40 +1333,42 @@ function parseCompactExteriorBodyText(text) {
     ];
     const result = {};
     let cursor = 0;
+    let currentLabel = null;
 
     for (let index = 0; index < traitOrder.length; index++) {
         const trait = EXTERIOR_TEXT_TRAITS.find((entry) => entry.key === traitOrder[index]);
         if (!trait) continue;
 
-        const label = getNormalizedExteriorAliases(trait)
-            .map((alias) => ({ alias, position: body.indexOf(alias, cursor) }))
-            .filter((match) => match.position !== -1)
-            .sort((a, b) => a.position - b.position || b.alias.length - a.alias.length)[0];
+        const label = currentLabel?.key === trait.key
+            ? currentLabel
+            : getNormalizedExteriorAliases(trait)
+                .map((alias) => ({ key: trait.key, alias, position: body.indexOf(alias, cursor) }))
+                .filter((match) => match.position !== -1)
+                .sort((a, b) => a.position - b.position || b.alias.length - a.alias.length)[0];
         if (!label) continue;
 
         const valueStart = label.position + label.alias.length;
-        cursor = valueStart;
-
-        let valueEnd = body.length;
+        let nextLabel = null;
         for (let nextIndex = index + 1; nextIndex < traitOrder.length; nextIndex++) {
             const nextTrait = EXTERIOR_TEXT_TRAITS.find((entry) => entry.key === traitOrder[nextIndex]);
             if (!nextTrait) continue;
 
-            const nextLabel = getNormalizedExteriorAliases(nextTrait)
-                .map((alias) => ({ alias, position: body.indexOf(alias, valueStart) }))
+            nextLabel = getNormalizedExteriorAliases(nextTrait)
+                .map((alias) => ({ key: nextTrait.key, alias, position: body.indexOf(alias, valueStart) }))
                 .filter((match) => match.position !== -1)
                 .sort((a, b) => a.position - b.position || b.alias.length - a.alias.length)[0];
-            if (nextLabel) {
-                valueEnd = nextLabel.position;
-                break;
-            }
+            if (nextLabel) break;
         }
 
+        const valueEnd = nextLabel?.position ?? body.length;
         const value = body.slice(valueStart, valueEnd).trim();
         const score = mapExteriorTextScore(value);
         if (score !== null) {
             result[trait.key] = { score, label: value };
         }
+
+        cursor = valueEnd;
+        currentLabel = nextLabel;
     }
 
     return result;
