@@ -1111,13 +1111,13 @@ function calculateInteriorAverage(obj) {
 ========================= */
 
 function parseExterior(text) {
-
     const geneResult = extractExteriorGenesAnyBlock(text);
     if (Object.keys(geneResult).length > 0) {
         return geneResult;
     }
 
-    return parseExteriorFromText(text);
+    const textResult = parseExteriorFromText(text);
+    return textResult;
 }
 
 function extractExteriorGenesAnyBlock(text) {
@@ -1167,6 +1167,10 @@ const EXTERIOR_TEXT_TRAITS = [
     { key: "Rückenlinie", aliases: ["ruckenlinie", "rueckenlinie"] },
     { key: "Beinstellung", aliases: ["beinstellung"] }
 ];
+
+function getNormalizedExteriorAliases(trait) {
+    return trait.aliases.map(normalizeExteriorText);
+}
 
 function normalizeExteriorText(value) {
     return (value || "")
@@ -1255,7 +1259,7 @@ function resolveExteriorTraitKey(label) {
     if (!normalized) return null;
 
     for (const trait of EXTERIOR_TEXT_TRAITS) {
-        if (trait.aliases.some(alias => normalized === alias)) {
+        if (getNormalizedExteriorAliases(trait).includes(normalized)) {
             return trait.key;
         }
     }
@@ -1290,10 +1294,11 @@ function parseExteriorFromText(text) {
 
         for (const line of lines) {
             const normalizedLine = normalizeExteriorText(line);
-            const alias = trait.aliases.find((a) => normalizedLine.startsWith(`${a} `) || normalizedLine === a);
+            const alias = getNormalizedExteriorAliases(trait)
+                .find((a) => normalizedLine.startsWith(`${a} `) || normalizedLine === a);
             if (!alias) continue;
 
-            const remainder = line.slice(alias.length).replace(/^\s*[:\-]\s*/, "").trim();
+            const remainder = line.replace(/^\s*\S+\s*/, "").replace(/^\s*[:\-]\s*/, "").trim();
             const score = mapExteriorTextScore(remainder || line);
 
             if (score !== null) {
@@ -1303,6 +1308,64 @@ function parseExteriorFromText(text) {
                 };
             }
             break;
+        }
+    }
+
+    return Object.keys(result).length ? result : parseCompactExteriorBodyText(text);
+}
+
+function parseCompactExteriorBodyText(text) {
+    const normalized = normalizeExteriorText(text);
+    const compactMarker = normalizeExteriorText("ExterieurKörperbau");
+    const spacedMarker = normalizeExteriorText("Exterieur Körperbau");
+    const compactStart = normalized.lastIndexOf(compactMarker);
+    const spacedStart = normalized.lastIndexOf(spacedMarker);
+    const bodyStart = Math.max(compactStart, spacedStart);
+    if (bodyStart === -1) return {};
+
+    const markerLength = compactStart > spacedStart ? compactMarker.length : spacedMarker.length;
+    const start = bodyStart + markerLength;
+    const interiorStart = normalized.indexOf("interieur", start);
+    const body = normalized.slice(start, interiorStart === -1 ? undefined : interiorStart);
+    const traitOrder = [
+        "Kopf", "Gebiss", "Hals", "Halsansatz", "Widerrist", "Schulter", "Brust",
+        "Rückenlinie", "Rückenlänge", "Kruppe", "Beinwinkelung", "Beinstellung", "Fesseln", "Hufe"
+    ];
+    const result = {};
+    let cursor = 0;
+
+    for (let index = 0; index < traitOrder.length; index++) {
+        const trait = EXTERIOR_TEXT_TRAITS.find((entry) => entry.key === traitOrder[index]);
+        if (!trait) continue;
+
+        const label = getNormalizedExteriorAliases(trait)
+            .map((alias) => ({ alias, position: body.indexOf(alias, cursor) }))
+            .filter((match) => match.position !== -1)
+            .sort((a, b) => a.position - b.position || b.alias.length - a.alias.length)[0];
+        if (!label) continue;
+
+        const valueStart = label.position + label.alias.length;
+        cursor = valueStart;
+
+        let valueEnd = body.length;
+        for (let nextIndex = index + 1; nextIndex < traitOrder.length; nextIndex++) {
+            const nextTrait = EXTERIOR_TEXT_TRAITS.find((entry) => entry.key === traitOrder[nextIndex]);
+            if (!nextTrait) continue;
+
+            const nextLabel = getNormalizedExteriorAliases(nextTrait)
+                .map((alias) => ({ alias, position: body.indexOf(alias, valueStart) }))
+                .filter((match) => match.position !== -1)
+                .sort((a, b) => a.position - b.position || b.alias.length - a.alias.length)[0];
+            if (nextLabel) {
+                valueEnd = nextLabel.position;
+                break;
+            }
+        }
+
+        const value = body.slice(valueStart, valueEnd).trim();
+        const score = mapExteriorTextScore(value);
+        if (score !== null) {
+            result[trait.key] = { score, label: value };
         }
     }
 
