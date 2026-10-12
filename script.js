@@ -1578,7 +1578,7 @@ function isFoalHorse(horse) {
 
 function isBreedingEligibleHorse(horse) {
     const age = getHorseAgeYears(horse);
-    return age === null || age >= 3;
+    return age !== null && age >= 3;
 }
 
 function populateBreedingDropdowns() {
@@ -3283,6 +3283,24 @@ async function promoteFoalToAdult(horseName) {
     renderDatabase();
 }
 
+async function moveHorseToFoals(horseIndex) {
+    const horse = pferde[horseIndex];
+    if (!horse) return;
+
+    horse.alterJahre = 2;
+    writeLocalPferde(pferde);
+
+    try {
+        await persistPferdeToRemote();
+    } catch {
+        // Keep local data in sync even if the remote store is temporarily unavailable.
+    }
+
+    const raceFilter = document.getElementById("dbFilterRasse");
+    if (raceFilter) raceFilter.value = "Fohlen";
+    renderDatabase();
+}
+
 function getTurnierCellColors(value, globalMin, globalMax) {
     if (globalMax === null || globalMin === null || globalMax <= globalMin) {
         return {
@@ -4218,8 +4236,13 @@ function showStallionView(horse, options = {}) {
         </div>
     `;
 
+    const foalCategoryActionHtml = isBreedingEligibleHorse(horse)
+        ? `<div style="margin-bottom: 12px;"><button class="btn" style="margin-top:0;" onclick="moveHorseToFoals(${horseIndex})">Zu den Fohlen verschieben</button></div>`
+        : "";
+
     const content = `
         <div id="view-zucht">
+            ${foalCategoryActionHtml}
             <p class="compare-summary">Übersicht aller geeigneten Stuten für ${escapeHtml(horse.name)} · nur Stuten ab 3 Jahren</p>
 
             <div class="compare-toolbar">
@@ -4466,7 +4489,7 @@ function showMareCombinations(mare) {
 
     const container = document.getElementById("db_liste");
 
-    let stallions = pferde.filter(p => p.geschlecht === "Hengst");
+    let stallions = pferde.filter((p) => p.geschlecht === "Hengst" && isBreedingEligibleHorse(p));
 
     const stallionSearchRaw = (document.getElementById("stallionSearch")?.value || "").trim().toLowerCase();
     const inbreedingRiskOnly = Boolean(mareCombinationViewState.inbreedingRiskOnly);
@@ -4537,9 +4560,11 @@ function showMareCombinations(mare) {
 
     const inbreedingCount = stallions.filter((stallion) => getRisk(stallion).isRisk).length;
     const bookmarkedCount = stallions.filter((stallion) => isMareStallionBookmarked(mare, stallion)).length;
-    const foalPromotionHtml = isFoalHorse(mare)
+    const foalCategoryActionHtml = isFoalHorse(mare)
         ? `<button class="btn" style="margin-top:0;" onclick="promoteFoalToAdult('${escapeHtml(mare.name)}')">3 Jahre erreicht · in regulären Tab verschieben</button>`
-        : "";
+        : isBreedingEligibleHorse(mare)
+            ? `<button class="btn" style="margin-top:0;" onclick="moveHorseToFoals(${pferde.indexOf(mare)})">Zu den Fohlen verschieben</button>`
+            : "";
 
     const stallionRows = stallions.map((stallion, index) => {
         const range = getRange(stallion);
@@ -4592,7 +4617,7 @@ function showMareCombinations(mare) {
 
         <div id="view-zucht">
 
-            ${foalPromotionHtml ? `<div style="margin-bottom: 12px;">${foalPromotionHtml}</div>` : ""}
+            ${foalCategoryActionHtml ? `<div style="margin-bottom: 12px;">${foalCategoryActionHtml}</div>` : ""}
 
             <div class="compare-toolbar">
                 <label class="compare-check">
@@ -4624,7 +4649,7 @@ function showMareCombinations(mare) {
 
             <p><b>Hengst-Kombinationen</b></p>
 
-            <p class="compare-summary">${stallions.length} Treffer · nur Hengste mit ausgeschlüsseltem Exterieur · ${inbreedingCount} mit Inzucht-Hinweis · ${bookmarkedCount} gemerkt </p>
+            <p class="compare-summary">${stallions.length} Treffer · nur Hengste ab 3 Jahren mit ausgeschlüsseltem Exterieur · ${inbreedingCount} mit Inzucht-Hinweis · ${bookmarkedCount} gemerkt </p>
 
             <div class="compare-table-wrap">
                 <table class="compare-table">
