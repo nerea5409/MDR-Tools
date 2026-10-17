@@ -1572,11 +1572,15 @@ function getHorseAgeYears(horse) {
 }
 
 function isFoalHorse(horse) {
+    if (horse?.zuchtStatus === "fohlen") return true;
+
     const age = getHorseAgeYears(horse);
     return age !== null && age < 3;
 }
 
 function isBreedingEligibleHorse(horse) {
+    if (horse?.zuchtStatus === "fohlen") return false;
+
     const age = getHorseAgeYears(horse);
     return age !== null && age >= 3;
 }
@@ -3272,6 +3276,7 @@ async function promoteFoalToAdult(horseName) {
     if (!horse) return;
 
     horse.alterJahre = 3;
+    delete horse.zuchtStatus;
     writeLocalPferde(pferde);
 
     try {
@@ -3288,6 +3293,7 @@ async function moveHorseToFoals(horseIndex) {
     if (!horse) return;
 
     horse.alterJahre = 2;
+    horse.zuchtStatus = "fohlen";
     writeLocalPferde(pferde);
 
     try {
@@ -3927,7 +3933,7 @@ function hasCompleteExteriorGenesForPair(mare, stallion) {
 function showStallionDetailFromMare(mareIndex, stallionIndex) {
     const mare = pferde[mareIndex];
     const stallion = pferde[stallionIndex];
-    if (!mare || !stallion) {
+    if (!mare || !stallion || !isBreedingEligibleHorse(mare) || !isBreedingEligibleHorse(stallion)) {
         renderDatabase();
         return;
     }
@@ -3943,7 +3949,7 @@ function showStallionDetailFromMare(mareIndex, stallionIndex) {
 function showStallionDetailFromStallionView(mareIndex, stallionIndex) {
     const mare = pferde[mareIndex];
     const stallion = pferde[stallionIndex];
-    if (!mare || !stallion) {
+    if (!mare || !stallion || !isBreedingEligibleHorse(mare) || !isBreedingEligibleHorse(stallion)) {
         renderDatabase();
         return;
     }

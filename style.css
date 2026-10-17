@@ -2229,7 +2229,7 @@ select:focus {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1160px) {
   #db_race_switch.view-switch {
     margin: 0 10px 10px !important;
   }
