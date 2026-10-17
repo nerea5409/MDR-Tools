@@ -1450,19 +1450,14 @@ select:focus {
   transform: scale(1);
 }
 
-.horse-row:hover .age-btn {
-  opacity: 1;
-  transform: scale(1);
-}
-
 .delete-btn:hover {
   background: #8a2d2d;
   color: white;
 }
 
 .age-btn {
-  opacity: 0;
-  transform: scale(0.9);
+  opacity: 1;
+  transform: none;
   background: rgba(31, 58, 46, 0.08);
   border: 1px solid rgba(31, 58, 46, 0.2);
   color: #2e4b3a;

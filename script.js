@@ -3271,9 +3271,9 @@ async function deletePferd(i) {
     renderDatabase();
 }
 
-async function promoteFoalToAdult(horseName) {
-    const horse = pferde.find((entry) => entry.name === horseName);
-    if (!horse) return;
+async function promoteFoalToAdult(horseIndex) {
+    const horse = pferde[horseIndex];
+    if (!horse || !isFoalHorse(horse)) return;
 
     horse.alterJahre = 3;
     delete horse.zuchtStatus;
@@ -3827,7 +3827,7 @@ function renderDatabase() {
             </div>
 
             <div style="display:flex; align-items:center; gap:6px;">
-                ${isFoalHorse(p) ? `<button class="age-btn" onclick="event.stopPropagation(); promoteFoalToAdult('${escapeHtml(p.name)}')">3 Jahre</button>` : ""}
+                ${isFoalHorse(p) ? `<button class="age-btn" onclick="event.stopPropagation(); promoteFoalToAdult(${pferde.indexOf(p)})">3 Jahre</button>` : ""}
                 <button class="delete-btn">
                     X
                 </button>
@@ -4567,7 +4567,7 @@ function showMareCombinations(mare) {
     const inbreedingCount = stallions.filter((stallion) => getRisk(stallion).isRisk).length;
     const bookmarkedCount = stallions.filter((stallion) => isMareStallionBookmarked(mare, stallion)).length;
     const foalCategoryActionHtml = isFoalHorse(mare)
-        ? `<button class="btn" style="margin-top:0;" onclick="promoteFoalToAdult('${escapeHtml(mare.name)}')">3 Jahre erreicht · in regulären Tab verschieben</button>`
+        ? `<button class="btn" style="margin-top:0;" onclick="promoteFoalToAdult(${pferde.indexOf(mare)})">3 Jahre erreicht · in regulären Tab verschieben</button>`
         : isBreedingEligibleHorse(mare)
             ? `<button class="btn" style="margin-top:0;" onclick="moveHorseToFoals(${pferde.indexOf(mare)})">Zu den Fohlen verschieben</button>`
             : "";
