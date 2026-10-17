@@ -4132,11 +4132,9 @@ function showStallionView(horse, options = {}) {
     const stallionSearchRaw = (document.getElementById("stallionSearch")?.value || "").trim().toLowerCase();
     const inbreedingRiskOnly = Boolean(stallionCombinationViewState.inbreedingRiskOnly);
     const bookmarkOnly = Boolean(stallionCombinationViewState.bookmarkOnly);
-    const gpWindow20Only = Boolean(stallionCombinationViewState.gpWindow20Only);
     const sortBy = stallionCombinationViewState.sortBy || "best";
     const sortDir = stallionCombinationViewState.sortDir || defaultSortDirection(sortBy);
     const sortFactor = sortDir === "asc" ? 1 : -1;
-    const horseGp = Number(horse?.gp || 0);
 
     const rangeCache = new Map();
     const getRange = (mare) => {
@@ -4160,9 +4158,8 @@ function showStallionView(horse, options = {}) {
         const genesPass = hasCompleteExteriorGenesForPair(mare, horse);
         const searchPass = !stallionSearchRaw || (mare.name || "").toLowerCase().includes(stallionSearchRaw);
         const bookmarkPass = !bookmarkOnly || isMareStallionBookmarked(mare, horse);
-        const gpPass = !gpWindow20Only || Math.abs(Number(mare.gp || 0) - horseGp) <= 20;
 
-        if (!genesPass || !searchPass || !bookmarkPass || !gpPass) {
+        if (!genesPass || !searchPass || !bookmarkPass) {
             return false;
         }
 
@@ -4260,11 +4257,6 @@ function showStallionView(horse, options = {}) {
                     Nur gemerkt
                 </label>
 
-                <label class="compare-check">
-                    <input type="checkbox" ${gpWindow20Only ? "checked" : ""} onchange="setStallionGpWindowFilter(${horseIndex}, this.checked)">
-                    GP ±20
-                </label>
-
                 <div class="compare-search-group stallion-search-group">
                     <input
                         id="stallionSearch"
@@ -4313,16 +4305,14 @@ const mareCombinationViewState = {
     sortBy: "best",
     sortDir: "asc",
     inbreedingRiskOnly: false,
-    bookmarkOnly: false,
-    gpWindow20Only: false
+    bookmarkOnly: false
 };
 
 const stallionCombinationViewState = {
     sortBy: "best",
     sortDir: "asc",
     inbreedingRiskOnly: false,
-    bookmarkOnly: false,
-    gpWindow20Only: false
+    bookmarkOnly: false
 };
 
 const MARE_STALLION_BOOKMARKS_KEY = "mare_stallion_bookmarks";
@@ -4436,11 +4426,6 @@ function setMareBookmarkFilter(mareIndex, checked) {
     showMareCombinationsByRefresh(mareIndex);
 }
 
-function setMareGpWindowFilter(mareIndex, checked) {
-    mareCombinationViewState.gpWindow20Only = Boolean(checked);
-    showMareCombinationsByRefresh(mareIndex);
-}
-
 function renderSortLabel(label, column) {
     if (mareCombinationViewState.sortBy !== column) {
         return label;
@@ -4480,11 +4465,6 @@ function setStallionBookmarkFilter(horseIndex, checked) {
     showStallionViewByRefresh(horseIndex);
 }
 
-function setStallionGpWindowFilter(horseIndex, checked) {
-    stallionCombinationViewState.gpWindow20Only = Boolean(checked);
-    showStallionViewByRefresh(horseIndex);
-}
-
 function showMareCombinations(mare) {
 
     document.getElementById("db_sortbar").style.display = "none";
@@ -4499,11 +4479,9 @@ function showMareCombinations(mare) {
     const stallionSearchRaw = (document.getElementById("stallionSearch")?.value || "").trim().toLowerCase();
     const inbreedingRiskOnly = Boolean(mareCombinationViewState.inbreedingRiskOnly);
     const bookmarkOnly = Boolean(mareCombinationViewState.bookmarkOnly);
-    const gpWindow20Only = Boolean(mareCombinationViewState.gpWindow20Only);
     const sortBy = mareCombinationViewState.sortBy || "best";
     const sortDir = mareCombinationViewState.sortDir || defaultSortDirection(sortBy);
     const sortFactor = sortDir === "asc" ? 1 : -1;
-    const mareGp = Number(mare?.gp || 0);
 
     const rangeCache = new Map();
     const getRange = (stallion) => {
@@ -4527,9 +4505,8 @@ function showMareCombinations(mare) {
         const genesPass = hasCompleteExteriorGenesForPair(mare, horse);
         const searchPass = !stallionSearchRaw || (horse.name || "").toLowerCase().includes(stallionSearchRaw);
         const bookmarkPass = !bookmarkOnly || isMareStallionBookmarked(mare, horse);
-        const gpPass = !gpWindow20Only || Math.abs(Number(horse.gp || 0) - mareGp) <= 20;
 
-        if (!genesPass || !searchPass || !bookmarkPass || !gpPass) {
+        if (!genesPass || !searchPass || !bookmarkPass) {
             return false;
         }
 
@@ -4630,11 +4607,6 @@ function showMareCombinations(mare) {
                 <label class="compare-check">
                     <input type="checkbox" ${bookmarkOnly ? "checked" : ""} onchange="setMareBookmarkFilter(${pferde.indexOf(mare)}, this.checked)">
                     Nur gemerkt
-                </label>
-
-                <label class="compare-check">
-                    <input type="checkbox" ${gpWindow20Only ? "checked" : ""} onchange="setMareGpWindowFilter(${pferde.indexOf(mare)}, this.checked)">
-                    GP ±20
                 </label>
 
                 <div class="compare-search-group stallion-search-group">
