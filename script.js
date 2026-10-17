@@ -3081,7 +3081,6 @@ function renderColorAnalysisReport(mareName, stallionName, mareText, stallionTex
 
                 <section class="color-card color-card-strong">
                     <h4>Alle berechneten Farb-Möglichkeiten</h4>
-                    <p class="color-status">Grey-Fohlen kommen in ihrer Grundfarbe zur Welt und schimmeln laut Spiel ab dem 3. Geburtstag aus. Die genaue Vererbung der Fellschattierungen ist nicht offengelegt und wird daher nicht berechnet.</p>
                     <div class="color-list">
                         ${phenotypeRows || `<div class="color-row"><span class="color-row-label">Unklar</span><span class="color-row-value">Zu wenige Gene erkannt</span></div>`}
                     </div>
