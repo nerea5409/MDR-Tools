@@ -1473,6 +1473,31 @@ select:focus {
   background: rgba(31, 58, 46, 0.16);
 }
 
+.foal-category-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(31, 58, 46, 0.12);
+}
+
+.btn.btn-foal-action {
+  margin-top: 0;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid rgba(31, 58, 46, 0.2);
+  color: #526257;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.btn.btn-foal-action:hover {
+  background: rgba(31, 58, 46, 0.08);
+  color: var(--primary);
+  transform: none;
+  box-shadow: none;
+}
+
 
 
 /* IMPORT / BREEDING PANEL */

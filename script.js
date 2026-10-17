@@ -4243,12 +4243,11 @@ function showStallionView(horse, options = {}) {
     `;
 
     const foalCategoryActionHtml = isBreedingEligibleHorse(horse)
-        ? `<div style="margin-bottom: 12px;"><button class="btn" style="margin-top:0;" onclick="moveHorseToFoals(${horseIndex})">Zu den Fohlen verschieben</button></div>`
+        ? `<div class="foal-category-action"><button class="btn btn-foal-action" onclick="moveHorseToFoals(${horseIndex})">In Fohlenbestand verschieben</button></div>`
         : "";
 
     const content = `
         <div id="view-zucht">
-            ${foalCategoryActionHtml}
             <p class="compare-summary">Übersicht aller geeigneten Stuten für ${escapeHtml(horse.name)} · nur Stuten ab 3 Jahren</p>
 
             <div class="compare-toolbar">
@@ -4300,6 +4299,7 @@ function showStallionView(horse, options = {}) {
                     </tbody>
                 </table>
             </div>
+            ${foalCategoryActionHtml}
         </div>
         <div id="view-turnier" style="display:none;">
             ${renderTournamentProfile(horse)}
@@ -4567,9 +4567,9 @@ function showMareCombinations(mare) {
     const inbreedingCount = stallions.filter((stallion) => getRisk(stallion).isRisk).length;
     const bookmarkedCount = stallions.filter((stallion) => isMareStallionBookmarked(mare, stallion)).length;
     const foalCategoryActionHtml = isFoalHorse(mare)
-        ? `<button class="btn" style="margin-top:0;" onclick="promoteFoalToAdult(${pferde.indexOf(mare)})">3 Jahre erreicht · in regulären Tab verschieben</button>`
+        ? `<div class="foal-category-action"><button class="btn btn-foal-action" onclick="promoteFoalToAdult(${pferde.indexOf(mare)})">Als ausgewachsen markieren · 3 Jahre</button></div>`
         : isBreedingEligibleHorse(mare)
-            ? `<button class="btn" style="margin-top:0;" onclick="moveHorseToFoals(${pferde.indexOf(mare)})">Zu den Fohlen verschieben</button>`
+            ? `<div class="foal-category-action"><button class="btn btn-foal-action" onclick="moveHorseToFoals(${pferde.indexOf(mare)})">In Fohlenbestand verschieben</button></div>`
             : "";
 
     const stallionRows = stallions.map((stallion, index) => {
@@ -4622,9 +4622,6 @@ function showMareCombinations(mare) {
         </div>
 
         <div id="view-zucht">
-
-            ${foalCategoryActionHtml ? `<div style="margin-bottom: 12px;">${foalCategoryActionHtml}</div>` : ""}
-
             <div class="compare-toolbar">
                 <label class="compare-check">
                     <input type="checkbox" ${inbreedingRiskOnly ? "checked" : ""} onchange="setMareInbreedingRiskFilter(${pferde.indexOf(mare)}, this.checked)">
@@ -4676,6 +4673,7 @@ function showMareCombinations(mare) {
                     </tbody>
                 </table>
             </div>
+            ${foalCategoryActionHtml}
         </div>
 
         <div id="view-turnier" style="display:none;">
